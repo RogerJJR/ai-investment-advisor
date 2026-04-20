@@ -1,10 +1,53 @@
 // Data sources page
 function Sources() {
   const [cat, setCat] = React.useState('全部');
-  const [selected, setSelected] = React.useState(DATA.sources[1]);
+
+  // Build news queries from holdings + broad market terms
+  const newsQueries = React.useMemo(() => {
+    const holdingSyms = DATA.holdings.map(h => RT.YAHOO_MAP[h.symbol]).filter(Boolean);
+    return [...new Set([...holdingSyms.slice(0, 6), 'Fed', 'inflation'])];
+  }, []);
+
+  const { news: liveNews, status: newsStatus, updatedAt: newsUpdatedAt, refresh: refreshNews } =
+    useLiveNews(newsQueries, { intervalMs: 5 * 60 * 1000, countEach: 3 });
+
+  // Merge live news with static entries, classify category by simple heuristic
+  const classify = (title) => {
+    const t = (title || '').toLowerCase();
+    if (/earning|revenue|profit|財報/.test(t)) return '財報';
+    if (/fed|fomc|利率|央行|rate|ecb|boj/.test(t)) return '央行';
+    if (/cpi|inflation|通膨|gdp|unemployment/.test(t)) return '總經';
+    if (/upgrade|downgrade|target|目標價|rating/.test(t)) return '評等';
+    if (/etf|成分|index/.test(t)) return 'ETF';
+    if (/rsi|macd|技術|chart|breakout/.test(t)) return '技術';
+    if (/sentiment|fear|greed|aaii/.test(t)) return '情緒';
+    return '新聞';
+  };
+  const asStaticLike = liveNews.map((n) => ({
+    id: n.id,
+    cat: classify(n.title),
+    title: n.title,
+    ts: n.time ? n.time.toLocaleString('zh-TW', { hour12: false }) : '—',
+    tag: (n.tickers[0] || n.query || '').toLowerCase(),
+    impact: 'medium',
+    provider: n.publisher,
+    link: n.link,
+    summary: n.summary,
+    live: true,
+  }));
+  const allSources = [...asStaticLike, ...DATA.sources];
 
   const cats = ['全部', '總經', '央行', '財報', '新聞', '評等', 'ETF', '技術', '情緒'];
-  const filtered = cat === '全部' ? DATA.sources : DATA.sources.filter(s => s.cat === cat);
+  const filtered = cat === '全部' ? allSources : allSources.filter(s => s.cat === cat);
+
+  const [selectedId, setSelectedId] = React.useState(null);
+  const selected = filtered.find(s => (s.id || s.title) === selectedId) || filtered[0] || DATA.sources[1];
+
+  const liveCount = liveNews.length;
+  const newsStatusLabel = {
+    idle:'待連線', loading:'抓取新聞中', live:`即時 · ${liveCount} 則`, error:'新聞離線',
+  }[newsStatus];
+  const newsStatusColor = newsStatus === 'live' ? 'var(--pos)' : newsStatus === 'error' ? 'var(--neg)' : 'var(--text-3)';
 
   return (
     <>
@@ -12,9 +55,13 @@ function Sources() {
         <div>
           <h1>資料基底</h1>
           <p>AI 所有判斷的根基是這些公開資料。透明呈現:資料源、更新頻率、最近一次抓取時間,以及每一則資料對投資組合的影響。</p>
+          <div style={{display:'flex', alignItems:'center', gap:8, marginTop:6, fontSize:11, color:newsStatusColor}}>
+            <span className={'dot ' + (newsStatus==='live'?'pulse':'')} style={{width:6, height:6, borderRadius:'50%', background:newsStatusColor, display:'inline-block'}}/>
+            {newsStatusLabel}{newsUpdatedAt && ` · ${RT.relTime(newsUpdatedAt)}`}
+          </div>
         </div>
         <div className="actions">
-          <button className="btn"><Icon name="refresh" size={14}/>同步最新</button>
+          <button className="btn" onClick={refreshNews}><Icon name="refresh" size={14}/>同步最新</button>
           <button className="btn"><Icon name="link" size={14}/>新增來源</button>
         </div>
       </div>
@@ -88,13 +135,15 @@ function Sources() {
           </div>
           <div>
             {filtered.map((s, i) => {
-              const active = selected.title === s.title;
+              const key = s.id || s.title;
+              const active = (selected.id || selected.title) === key;
               return (
-                <div key={i} onClick={()=>setSelected(s)}
+                <div key={key || i} onClick={()=>setSelectedId(key)}
                      style={{padding:'14px 16px', borderBottom:'1px solid var(--line)', cursor:'pointer', background: active?'var(--accent-soft-2)':'transparent', borderLeft: active?'2px solid var(--accent)':'2px solid transparent'}}>
                   <div style={{display:'flex', alignItems:'center', gap:10, marginBottom:4}}>
                     <span className="chip" style={{fontSize:10}}>{s.cat}</span>
                     <ImpactPill level={s.impact}/>
+                    {s.live && <span className="chip accent" style={{fontSize:9, padding:'0 4px'}}><span className="dot pulse" style={{width:4, height:4}}/>即時</span>}
                     <span style={{fontSize:10, color:'var(--text-3)', marginLeft:'auto'}} className="mono">{s.ts}</span>
                   </div>
                   <div style={{fontSize:13, color:'var(--text-0)', marginBottom:4, fontWeight:500}}>{s.title}</div>
@@ -118,10 +167,9 @@ function Sources() {
             <h3 style={{margin:'0 0 10px', fontSize:15, fontWeight:500, lineHeight:1.4}}>{selected.title}</h3>
             <div style={{fontSize:11, color:'var(--text-3)', marginBottom:14}} className="mono">{selected.ts}</div>
 
-            <div className="card-title" style={{fontSize:10, marginBottom:8}}>AI 摘要</div>
+            <div className="card-title" style={{fontSize:10, marginBottom:8}}>{selected.live ? '原文摘要' : 'AI 摘要'}</div>
             <p style={{margin:'0 0 14px', fontSize:12, color:'var(--text-1)', lineHeight:1.7}}>
-              Fed 3 月會議紀要顯示多數委員傾向在第二季維持利率不變,需要看到 CPI 連續 2 個月低於 2.5% 才會考慮降息。
-              市場將此解讀為「偏鷹」,美債殖利率短線上升 8bps。
+              {selected.summary || 'Fed 3 月會議紀要顯示多數委員傾向在第二季維持利率不變,需要看到 CPI 連續 2 個月低於 2.5% 才會考慮降息。市場將此解讀為「偏鷹」,美債殖利率短線上升 8bps。'}
             </p>
 
             <div className="card-title" style={{fontSize:10, marginBottom:8}}>對你的投資組合影響</div>
@@ -142,7 +190,11 @@ function Sources() {
             </div>
 
             <div style={{display:'flex', gap:6, marginTop:14}}>
-              <button className="btn" style={{flex:1}}><Icon name="external" size={12}/>原始出處</button>
+              {selected.link ? (
+                <a className="btn" style={{flex:1, textDecoration:'none'}} href={selected.link} target="_blank" rel="noopener noreferrer"><Icon name="external" size={12}/>原始出處</a>
+              ) : (
+                <button className="btn" style={{flex:1}} disabled><Icon name="external" size={12}/>原始出處</button>
+              )}
               <button className="btn" style={{flex:1}}>觸發的訊號 (2)</button>
             </div>
           </div>

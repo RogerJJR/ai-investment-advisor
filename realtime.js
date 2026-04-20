@@ -104,6 +104,40 @@
     return out;
   }
 
+  // Yahoo Finance news search. Returns normalised news items.
+  async function fetchYahooNews(query, count = 6) {
+    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&newsCount=${count}&quotesCount=0`;
+    const json = await fetchWithProxy(url);
+    const news = json?.news || [];
+    return news.map((n) => ({
+      id: n.uuid || n.link,
+      title: n.title,
+      publisher: n.publisher || '—',
+      summary: n.summary || '',
+      link: n.link,
+      time: n.providerPublishTime ? new Date(n.providerPublishTime * 1000) : null,
+      thumbnail: n.thumbnail?.resolutions?.[0]?.url || null,
+      tickers: n.relatedTickers || [],
+      query,
+    }));
+  }
+
+  async function fetchNewsMany(queries, countEach = 4) {
+    const results = await Promise.allSettled(queries.map(q => fetchYahooNews(q, countEach)));
+    const merged = [];
+    const seen = new Set();
+    results.forEach((r) => {
+      if (r.status !== 'fulfilled') return;
+      r.value.forEach((n) => {
+        if (!n.id || seen.has(n.id)) return;
+        seen.add(n.id);
+        merged.push(n);
+      });
+    });
+    merged.sort((a, b) => (b.time?.getTime() || 0) - (a.time?.getTime() || 0));
+    return merged;
+  }
+
   // ── React hook ────────────────────────────────────────────────
   const { useState, useEffect, useRef, useCallback } = React;
 
@@ -142,6 +176,42 @@
     }, [refresh, intervalMs]);
 
     return { quotes, status, updatedAt, error, refresh };
+  }
+
+  function useLiveNews(queries, { intervalMs = 5 * 60 * 1000, countEach = 4 } = {}) {
+    const [news, setNews] = useState([]);
+    const [status, setStatus] = useState('idle');
+    const [updatedAt, setUpdatedAt] = useState(null);
+    const [error, setError] = useState(null);
+    const key = queries.filter(Boolean).join('|');
+    const mountedRef = useRef(true);
+
+    const refresh = useCallback(async () => {
+      if (!queries.length) return;
+      setStatus((s) => s === 'live' ? 'live' : 'loading');
+      try {
+        const data = await fetchNewsMany(queries, countEach);
+        if (!mountedRef.current) return;
+        if (!data.length) throw new Error('No news');
+        setNews(data);
+        setStatus('live');
+        setUpdatedAt(new Date());
+        setError(null);
+      } catch (e) {
+        if (!mountedRef.current) return;
+        setStatus('error');
+        setError(e.message || String(e));
+      }
+    }, [key]);
+
+    useEffect(() => {
+      mountedRef.current = true;
+      refresh();
+      const id = setInterval(refresh, intervalMs);
+      return () => { mountedRef.current = false; clearInterval(id); };
+    }, [refresh, intervalMs]);
+
+    return { news, status, updatedAt, error, refresh };
   }
 
   function useLiveHistory(tickers, { range = '10y', interval = '1mo' } = {}) {
@@ -273,6 +343,8 @@
     fetchMany,
     fetchYahooHistory,
     fetchHistoryMany,
+    fetchYahooNews,
+    fetchNewsMany,
     annualReturnsFromMonthly,
     computeLiveAllocation,
     generateAllocationSignals,
@@ -282,4 +354,5 @@
   };
   window.useLiveQuotes = useLiveQuotes;
   window.useLiveHistory = useLiveHistory;
+  window.useLiveNews = useLiveNews;
 })();
