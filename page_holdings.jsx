@@ -23,6 +23,8 @@ function Holdings() {
 
   const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const trendTickers = RT.holdingsToTickers(userHoldings);
+  const { history: trendHistory } = useLiveHistory(trendTickers, { range: '3mo', interval: '1d' });
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
   const usdTwd = quotes['TWD=X']?.price;
@@ -240,12 +242,13 @@ function Holdings() {
               <th className="num">市值</th>
               <th className="num">損益</th>
               <th className="num">權重</th>
+              <th>3M 走勢</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11}>
+              <tr><td colSpan={12}>
                 <div className="empty-state">
                   <div className="empty-icon"><Icon name="portfolio" size={18}/></div>
                   <div className="empty-title">{userHoldings.length === 0 ? '尚未建立持股' : '沒有符合條件的持股'}</div>
@@ -283,6 +286,16 @@ function Holdings() {
                       <span>{h.weight.toFixed(1)}%</span>
                       <div className="bar" style={{width:60}}><span style={{width:Math.min(h.weight*2, 100)+'%'}}/></div>
                     </div>
+                  </td>
+                  <td>
+                    {(() => {
+                      const tk = RT.YAHOO_MAP[h.symbol];
+                      const pts = tk && trendHistory[tk];
+                      if (!pts || pts.length < 2) return <span style={{fontSize:10, color:'var(--text-4)'}}>—</span>;
+                      const values = pts.map(p => p.close);
+                      const up = values[values.length-1] >= values[0];
+                      return <Sparkline values={values} width={110} height={28} color={up?'var(--pos)':'var(--neg)'}/>;
+                    })()}
                   </td>
                   <td>
                     <div style={{display:'flex', gap:4, justifyContent:'flex-end'}}>
