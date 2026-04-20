@@ -21,6 +21,14 @@ function Holdings() {
   const [search, setSearch]   = React.useState('');
   const [filterSector, setFilterSector] = React.useState('全部');
   const [selectedIds, setSelectedIds] = React.useState(new Set());
+  const [sort, setSort] = React.useState({ col: 'weight', dir: 'desc' });
+  const cycleSort = (col) => {
+    setSort(prev => {
+      if (prev.col !== col) return { col, dir: 'desc' };
+      if (prev.dir === 'desc') return { col, dir: 'asc' };
+      return { col: 'weight', dir: 'desc' };
+    });
+  };
   const toggleSel = (id) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
   const removeSelected = () => {
     if (selectedIds.size === 0) return;
@@ -50,6 +58,44 @@ function Holdings() {
     if (search && !(`${h.symbol} ${h.name}`.toLowerCase().includes(search.toLowerCase()))) return false;
     return true;
   });
+
+  const sortKeyFor = (h, col) => {
+    switch (col) {
+      case 'symbol':  return h.symbol;
+      case 'name':    return h.name;
+      case 'type':    return h.type;
+      case 'shares':  return h.shares || 0;
+      case 'cost':    return h.cost || 0;
+      case 'price':   return h.price || 0;
+      case 'mv':      return RT.holdingMarketValueTWD(h, usdTwd);
+      case 'pl':      return h.cost ? ((h.price - h.cost) / h.cost) * 100 : 0;
+      case 'weight':  return h.weight || 0;
+      default:        return 0;
+    }
+  };
+  filtered.sort((a, b) => {
+    const av = sortKeyFor(a, sort.col);
+    const bv = sortKeyFor(b, sort.col);
+    if (av < bv) return sort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return sort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const SortHeader = ({ col, children, num }) => {
+    const active = sort.col === col;
+    const arrow = active ? (sort.dir === 'asc' ? '▲' : '▼') : '';
+    return (
+      <th
+        className={num ? 'num' : undefined}
+        onClick={() => cycleSort(col)}
+        style={{cursor:'pointer', userSelect:'none', color: active ? 'var(--accent)' : undefined}}
+        title="點擊切換排序(desc → asc → 預設)"
+      >
+        {children}
+        <span className="mono" style={{marginLeft:4, fontSize:9, opacity: active ? 1 : 0.25}}>{arrow || '↕'}</span>
+      </th>
+    );
+  };
 
   const addHolding = (data) => {
     const guess = guessSectorType(data.symbol);
@@ -286,15 +332,15 @@ function Holdings() {
                          setSelectedIds(n);
                        }}/>
               </th>
-              <th>代號</th>
-              <th>名稱</th>
-              <th>類別</th>
-              <th className="num">持有</th>
-              <th className="num">均價</th>
-              <th className="num">現價</th>
-              <th className="num">市值</th>
-              <th className="num">損益</th>
-              <th className="num">權重</th>
+              <SortHeader col="symbol">代號</SortHeader>
+              <SortHeader col="name">名稱</SortHeader>
+              <SortHeader col="type">類別</SortHeader>
+              <SortHeader col="shares" num>持有</SortHeader>
+              <SortHeader col="cost" num>均價</SortHeader>
+              <SortHeader col="price" num>現價</SortHeader>
+              <SortHeader col="mv" num>市值</SortHeader>
+              <SortHeader col="pl" num>損益</SortHeader>
+              <SortHeader col="weight" num>權重</SortHeader>
               <th>3M 走勢</th>
               <th></th>
             </tr>
