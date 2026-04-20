@@ -40,14 +40,48 @@ function Sources() {
 
   const cats = ['全部', '總經', '央行', '財報', '新聞', '評等', 'ETF', '技術', '情緒'];
   const [query, setQuery] = React.useState('');
+  const [timeRange, setTimeRange] = React.useState('全部');
   const q = query.trim().toLowerCase();
+  const tsOf = (s) => {
+    if (s.live && liveNews) {
+      const ln = liveNews.find(n => n.id === s.id);
+      if (ln?.time) return ln.time.getTime();
+    }
+    if (s.ts) { const t = new Date(s.ts).getTime(); if (!isNaN(t)) return t; }
+    return null;
+  };
+  const now = Date.now();
+  const ranges = {
+    '今日':   24 * 60 * 60 * 1000,
+    '近 3 天':  3 * 24 * 60 * 60 * 1000,
+    '本週':   7 * 24 * 60 * 60 * 1000,
+    '全部':   null,
+  };
+  const inRange = (s) => {
+    const win = ranges[timeRange];
+    if (!win) return true;
+    const t = tsOf(s);
+    if (t == null) return false;
+    return (now - t) <= win;
+  };
   const byCat = cat === '全部' ? allSources : allSources.filter(s => s.cat === cat);
-  const filtered = !q ? byCat : byCat.filter(s =>
+  const byTime = timeRange === '全部' ? byCat : byCat.filter(inRange);
+  const filtered = !q ? byTime : byTime.filter(s =>
     (s.title || '').toLowerCase().includes(q) ||
     (s.summary || '').toLowerCase().includes(q) ||
     (s.provider || '').toLowerCase().includes(q) ||
     (s.tag || '').toLowerCase().includes(q)
   );
+  const rangeCounts = React.useMemo(() => {
+    const r = {};
+    Object.keys(ranges).forEach(k => {
+      r[k] = k === '全部' ? byCat.length : byCat.filter(s => {
+        const t = tsOf(s); if (t == null) return false;
+        return (now - t) <= ranges[k];
+      }).length;
+    });
+    return r;
+  }, [byCat, now]);
 
   const highlight = (text) => {
     if (!q || !text) return text;
@@ -186,6 +220,13 @@ function Sources() {
                 <button key={c} className={cat===c?'active':''} onClick={()=>setCat(c)}>{c}</button>
               ))}
             </div>
+            <div className="seg" title="依資料時間篩選">
+              {Object.keys(ranges).map(r => (
+                <button key={r} className={timeRange===r?'active':''} onClick={()=>setTimeRange(r)} title={`${r} 共 ${rangeCounts[r] ?? 0} 則`}>
+                  {r}{timeRange===r && rangeCounts[r] != null && <span className="mono" style={{marginLeft:4, opacity:0.7, fontSize:10}}>{rangeCounts[r]}</span>}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setOnlyBookmarked(v => !v)}
               title={onlyBookmarked ? '顯示全部' : '只看已收藏'}
@@ -257,6 +298,7 @@ function Sources() {
                 <div>
                   {onlyBookmarked ? '在任一則資料右上角點「☆」即可加入書籤。'
                     : q ? '試試其他關鍵字,或清除搜尋條件。'
+                    : timeRange !== '全部' ? `試試放寬時間範圍,或切換至「全部」查看所有 ${byCat.length} 則。`
                     : '切換類別或點「同步最新」重新抓取。'}
                 </div>
               </div>
