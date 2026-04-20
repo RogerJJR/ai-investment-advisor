@@ -368,6 +368,94 @@ function Backtest() {
           </div>
         </div>
       </div>
+
+      {/* DCA vs Lump-sum */}
+      {isLive && aiAnnual.length >= 2 && (() => {
+        let prefs = {};
+        try { prefs = JSON.parse(localStorage.getItem('ai-advisor-prefs-v1') || '{}'); } catch {}
+        const monthly = Number(prefs.monthly) || 30000;
+        const years = aiAnnual.length;
+        const annual = monthly * 12;
+        const totalInvested = annual * years;
+
+        // DCA: contribute 'annual' at the start of each year, grow by that year's return
+        let dcaValue = 0;
+        const dcaPath = [];
+        aiAnnual.forEach(a => {
+          dcaValue = (dcaValue + annual) * (1 + a.ret / 100);
+          dcaPath.push(dcaValue);
+        });
+
+        // Lump-sum: invest totalInvested at start of year 1, grow each year
+        let lsValue = totalInvested;
+        const lsPath = [];
+        aiAnnual.forEach(a => {
+          lsValue = lsValue * (1 + a.ret / 100);
+          lsPath.push(lsValue);
+        });
+
+        const dcaFinal = dcaPath[dcaPath.length - 1];
+        const lsFinal  = lsPath[lsPath.length - 1];
+        const dcaGain = dcaFinal - totalInvested;
+        const lsGain  = lsFinal  - totalInvested;
+        const winner  = lsFinal > dcaFinal ? 'LS' : 'DCA';
+        const gap = Math.abs(lsFinal - dcaFinal);
+        const maxPath = Math.max(...dcaPath, ...lsPath);
+
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">定期定額 vs 一次投入</div>
+                <div className="card-sub">以月定投 {fmt.tw(monthly)} (設定頁)、{years} 年、AI 建議配置模擬 · 兩者總投入皆為 {fmt.tw(totalInvested)}</div>
+              </div>
+              <span className="chip" style={{color: winner==='LS'?'var(--accent)':'var(--pos)'}}>
+                {winner==='LS' ? '一次投入勝' : '定期定額勝'} · 差 {fmt.tw(gap)}
+              </span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:14}}>
+              <div style={{padding:12, borderRadius:'var(--radius)', background:'var(--bg-2)', borderLeft:`2px solid ${winner==='DCA'?'var(--pos)':'var(--text-3)'}`}}>
+                <div className="mono-label">定期定額 (DCA)</div>
+                <div className="mono" style={{fontSize:22, color:'var(--text-0)', marginTop:4}}>{fmt.tw(dcaFinal)}</div>
+                <div style={{fontSize:11, color: dcaGain>=0?'var(--pos)':'var(--neg)', marginTop:2}}>
+                  收益 {dcaGain>=0?'+':''}{fmt.tw(dcaGain)} ({((dcaGain/totalInvested)*100).toFixed(1)}%)
+                </div>
+                <div style={{fontSize:10, color:'var(--text-3)', marginTop:4}}>每年年初投入 {fmt.tw(annual)}</div>
+              </div>
+              <div style={{padding:12, borderRadius:'var(--radius)', background:'var(--bg-2)', borderLeft:`2px solid ${winner==='LS'?'var(--accent)':'var(--text-3)'}`}}>
+                <div className="mono-label">一次投入 (Lump Sum)</div>
+                <div className="mono" style={{fontSize:22, color:'var(--text-0)', marginTop:4}}>{fmt.tw(lsFinal)}</div>
+                <div style={{fontSize:11, color: lsGain>=0?'var(--pos)':'var(--neg)', marginTop:2}}>
+                  收益 {lsGain>=0?'+':''}{fmt.tw(lsGain)} ({((lsGain/totalInvested)*100).toFixed(1)}%)
+                </div>
+                <div style={{fontSize:10, color:'var(--text-3)', marginTop:4}}>首年一次性投入 {fmt.tw(totalInvested)}</div>
+              </div>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              {aiAnnual.map((a, i) => {
+                const dcaPct = (dcaPath[i] / maxPath) * 100;
+                const lsPct  = (lsPath[i]  / maxPath) * 100;
+                return (
+                  <div key={a.year} style={{display:'grid', gridTemplateColumns:'50px 1fr 110px 110px', gap:10, alignItems:'center', fontSize:11}}>
+                    <span className="mono" style={{color:'var(--text-2)'}}>{a.year}</span>
+                    <div style={{position:'relative', height:14}}>
+                      <div title={`DCA ${fmt.tw(dcaPath[i])}`} style={{position:'absolute', left:0, top:0, height:6, width:dcaPct+'%', background:'var(--pos)', borderRadius:2, opacity:0.85}}/>
+                      <div title={`LS ${fmt.tw(lsPath[i])}`}   style={{position:'absolute', left:0, top:8, height:6, width:lsPct+'%',  background:'var(--accent)', borderRadius:2, opacity:0.85}}/>
+                    </div>
+                    <span className="mono" style={{textAlign:'right', color:'var(--text-1)'}}>{fmt.tw(dcaPath[i])}</span>
+                    <span className="mono" style={{textAlign:'right', color:'var(--text-1)'}}>{fmt.tw(lsPath[i])}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:'flex', gap:14, marginTop:10, fontSize:11, color:'var(--text-3)'}}>
+              <span style={{display:'inline-flex', alignItems:'center', gap:5}}><span style={{width:12, height:6, background:'var(--pos)', borderRadius:2}}/>DCA 年末資產</span>
+              <span style={{display:'inline-flex', alignItems:'center', gap:5}}><span style={{width:12, height:6, background:'var(--accent)', borderRadius:2}}/>LS 年末資產</span>
+              <span style={{marginLeft:'auto'}}>{winner==='LS' ? '上漲市場通常一次投入領先;' : '震盪或先跌後漲時定期定額較穩健;'}實際決策請依資金流與風險承受度。</span>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
