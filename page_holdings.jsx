@@ -63,6 +63,7 @@ function Holdings() {
       price:  Number(data.price)  || Number(data.cost) || 0,
       cost:   Number(data.cost)   || 0,
       weight: 0,
+      notes:  data.notes || '',
     };
     setHoldings([...userHoldings, h]);
   };
@@ -84,10 +85,10 @@ function Holdings() {
   const fileInputRef = React.useRef(null);
 
   const exportCSV = () => {
-    const header = ['symbol','name','type','sector','shares','cost','price'];
+    const header = ['symbol','name','type','sector','shares','cost','price','notes'];
     const rows = userHoldings.map(h => [
       h.symbol, h.name, h.type, h.sector,
-      h.shares ?? '', h.cost ?? '', h.price ?? '',
+      h.shares ?? '', h.cost ?? '', h.price ?? '', h.notes ?? '',
     ]);
     const esc = (v) => {
       const s = String(v ?? '');
@@ -153,6 +154,7 @@ function Holdings() {
               cost:   Number(r.cost)   || 0,
               price:  Number(r.price)  || Number(r.cost) || 0,
               weight: 0,
+              notes:  r.notes  || '',
             };
           });
         if (!imported.length) { toast.error('沒有可匯入的列(需要至少 symbol 欄位)。'); return; }
@@ -170,6 +172,11 @@ function Holdings() {
     idle: '待連線', loading: '連線中', live: `即時 · ${liveCount}/${holdings.length} 檔`, error: '離線 · 使用快照',
   }[status];
   const statusColor = status === 'live' ? 'var(--pos)' : status === 'error' ? 'var(--neg)' : 'var(--text-3)';
+
+  const STALE_MS = 10 * 60 * 1000;
+  const ageMs = updatedAt ? Date.now() - updatedAt.getTime() : null;
+  const isStale = status === 'error' || (ageMs != null && ageMs > STALE_MS);
+  const staleMinutes = ageMs != null ? Math.floor(ageMs / 60000) : null;
 
   return (
     <>
@@ -192,6 +199,27 @@ function Holdings() {
           <button className="btn primary" onClick={()=>setShowAdd(true)}><Icon name="plus" size={14}/>新增持股</button>
         </div>
       </div>
+
+      {isStale && (
+        <div style={{
+          display:'flex', alignItems:'center', gap:10,
+          padding:'10px 14px', marginBottom:'var(--density-gap)',
+          border:'1px solid var(--neg)', borderLeft:'3px solid var(--neg)',
+          background:'var(--bg-2)', borderRadius:'var(--radius)',
+          fontSize:12, color:'var(--text-1)',
+        }}>
+          <Icon name="alert" size={14} style={{color:'var(--neg)', flexShrink:0}}/>
+          <div style={{flex:1}}>
+            <b>行情可能過時</b>
+            <span style={{color:'var(--text-3)', marginLeft:8}}>
+              {status === 'error' ? '連線失敗,顯示為最後一次成功抓取的快照。' :
+                `上一次成功更新為 ${staleMinutes} 分鐘前。`}
+              {' '}市值與損益數字僅供參考。
+            </span>
+          </div>
+          <button className="btn" onClick={refresh}><Icon name="refresh" size={12}/>立即重試</button>
+        </div>
+      )}
 
       {/* Import choices */}
       <div className="card" style={{marginBottom:'var(--density-gap)'}}>
@@ -294,7 +322,18 @@ function Holdings() {
                       {h.live && <span className="dot pulse" title="即時" style={{width:5, height:5, borderRadius:'50%', background:'var(--pos)', display:'inline-block'}}/>}
                     </span>
                   </td>
-                  <td style={{color:'var(--text-1)'}}>{h.name}</td>
+                  <td style={{color:'var(--text-1)'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:6}}>
+                      <span>{h.name}</span>
+                      {h.notes && (
+                        <span title={h.notes} style={{
+                          fontSize:9, padding:'1px 5px', borderRadius:3,
+                          background:'var(--accent-soft-2)', color:'var(--accent)',
+                          cursor:'help', letterSpacing:'0.02em',
+                        }}>備註</span>
+                      )}
+                    </div>
+                  </td>
                   <td><span className="chip" style={{fontSize:10}}>{h.type}</span></td>
                   <td className="num">{h.shares.toLocaleString()}</td>
                   <td className="num" style={{color:'var(--text-2)'}}>{fmt.num(h.cost)}</td>
@@ -367,6 +406,7 @@ function HoldingFormModal({ holding, onClose, onSave }) {
   const [cost,   setCost]   = React.useState(holding ? String(holding.cost)   : '');
   const [sector, setSector] = React.useState(holding?.sector || '');
   const [type,   setType]   = React.useState(holding?.type   || '');
+  const [notes,  setNotes]  = React.useState(holding?.notes  || '');
   const [lookupStatus, setLookupStatus] = React.useState('idle');
   const [lookupPrice, setLookupPrice]   = React.useState(null);
 
@@ -397,6 +437,7 @@ function HoldingFormModal({ holding, onClose, onSave }) {
       price: lookupPrice || cost || 0,
       sector: sector || guessSectorType(sym).sector,
       type:   type   || guessSectorType(sym).type,
+      notes: notes.trim(),
     });
   };
 
@@ -448,6 +489,16 @@ function HoldingFormModal({ holding, onClose, onSave }) {
             </select>
           </div>
         </div>
+
+        <label className="field-label" style={{marginTop:14}}>備註 <span style={{color:'var(--text-3)', fontSize:10, marginLeft:4}}>(選填 · 僅自己可見)</span></label>
+        <textarea
+          className="input"
+          placeholder="例如:長期持有核心部位,除非跌破 200 日均線不出場"
+          value={notes}
+          onChange={e=>setNotes(e.target.value)}
+          rows={3}
+          style={{resize:'vertical', fontFamily:'inherit', minHeight:60, padding:8}}
+        />
 
         <div style={{display:'flex', gap:8, marginTop:20, justifyContent:'flex-end'}}>
           <button className="btn" onClick={onClose}>取消</button>
