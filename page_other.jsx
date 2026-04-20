@@ -56,15 +56,42 @@ function computeStats(annual) {
   return { totalRet, cagr, maxDD, sharpe, winRate, cumulative };
 }
 
+const BT_TICKER_LABEL = {
+  'VTI':    '美股整體',
+  '0050.TW':'台股 50',
+  'VT':     '全球股',
+  'BND':    '美國綜合債',
+  'GLD':    '黃金',
+};
+
 function Backtest() {
   const [preset, setPreset] = React.useState('AI 建議');
+  const [excluded, setExcluded] = React.useState(() => new Set());
   const tickers = [...new Set([...Object.keys(BT_WEIGHTS), ...Object.keys(BT_BENCHMARK)])];
   const { history, status, error } = useLiveHistory(tickers, { range: '10y', interval: '1mo' });
 
-  const aiAnnual   = computePortfolioAnnual(history, BT_WEIGHTS);
+  const effectiveWeights = React.useMemo(() => {
+    const active = Object.entries(BT_WEIGHTS).filter(([t]) => !excluded.has(t));
+    const total = active.reduce((s, [, w]) => s + w, 0) || 1;
+    return Object.fromEntries(active.map(([t, w]) => [t, w / total]));
+  }, [excluded]);
+
+  const aiAnnual   = computePortfolioAnnual(history, effectiveWeights);
   const benchAnnual = computePortfolioAnnual(history, BT_BENCHMARK);
   const aiStats    = computeStats(aiAnnual);
   const benchStats = computeStats(benchAnnual);
+
+  const toggleTicker = (t) => {
+    setExcluded(prev => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      if (next.size === Object.keys(BT_WEIGHTS).length) {
+        toast.error('至少需要保留一檔標的');
+        return prev;
+      }
+      return next;
+    });
+  };
 
   const isLive = status === 'live' && aiStats;
   const bt = isLive
@@ -150,6 +177,57 @@ function Backtest() {
           width={1080} height={280}
           labels={bt.years.map(String)}
         />
+      </div>
+
+      <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">AI 建議成分</div>
+            <div className="card-sub">勾選可加入回測,取消則權重自動歸一化分配到其餘標的</div>
+          </div>
+          <div style={{fontSize:11, color:'var(--text-3)'}}>
+            啟用 <b className="mono" style={{color:'var(--text-1)'}}>{Object.keys(effectiveWeights).length}</b> / {Object.keys(BT_WEIGHTS).length} 檔
+          </div>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:10}}>
+          {Object.entries(BT_WEIGHTS).map(([t, baseW]) => {
+            const on = !excluded.has(t);
+            const effW = effectiveWeights[t] ?? 0;
+            const hasData = !!history[t];
+            return (
+              <label key={t}
+                     style={{
+                       display:'flex', alignItems:'center', gap:10, padding:10,
+                       border:'1px solid ' + (on ? 'var(--accent)' : 'var(--line)'),
+                       borderRadius:'var(--radius)',
+                       background: on ? 'var(--accent-soft-2)' : 'var(--bg-2)',
+                       cursor:'pointer', opacity: hasData ? 1 : 0.55,
+                     }}>
+                <input type="checkbox" checked={on} onChange={() => toggleTicker(t)}
+                       style={{accentColor:'var(--accent)', width:14, height:14}}/>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:8}}>
+                    <span className="mono" style={{fontSize:12, color:'var(--text-0)', fontWeight:500}}>{t}</span>
+                    <span className="mono" style={{fontSize:11, color: on ? 'var(--accent)' : 'var(--text-3)'}}>
+                      {on ? (effW * 100).toFixed(0) + '%' : '—'}
+                    </span>
+                  </div>
+                  <div style={{fontSize:10, color:'var(--text-3)', marginTop:2, display:'flex', justifyContent:'space-between'}}>
+                    <span>{BT_TICKER_LABEL[t] || t}</span>
+                    <span>原 {(baseW * 100).toFixed(0)}%</span>
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+        {excluded.size > 0 && (
+          <div style={{marginTop:12, display:'flex', justifyContent:'flex-end'}}>
+            <button className="btn" onClick={() => setExcluded(new Set())}>
+              <Icon name="refresh" size={12}/>重設為完整組合
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'var(--density-gap)'}}>
