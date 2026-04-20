@@ -1,0 +1,43 @@
+{
+  "name": "20 Rebalance threshold 0.03",
+  "stats": {
+    "annual_return": 0.0368978129482582,
+    "annual_vol": 0.06959584309472444,
+    "cagr": 0.03508390378887375,
+    "sharpe": 0.24881747097383308,
+    "sortino": 0.38621095611343875,
+    "max_drawdown": -0.20393695498772013,
+    "calmar": 0.2023880861307824,
+    "avg_turnover": 0.046357379444330625,
+    "crra_ce_annual": 0.024937065775140394,
+    "crra_ce_annual_se": 0.003945171104034742,
+    "sharpe_se": 0.05534362968629118
+  },
+  "cfg": {
+    "risk_aversion": 5.0,
+    "long_only": true,
+    "max_weight": 0.6,
+    "min_cash_equiv": 0.0,
+    "tc_bps": 10.0,
+    "mu_shrinkage": 0.2,
+    "weight_inertia": 0.7,
+    "use_lw_shrinkage": true,
+    "lw_alpha": 0.2,
+    "use_regime_gamma": true,
+    "use_entropy_conf": false,
+    "entropy_floor": 0.4,
+    "use_momentum": false,
+    "momentum_strength": 0.08,
+    "use_vol_target": true,
+    "vol_target_annual": 0.08,
+    "use_kelly": false,
+    "kelly_cap": 1.0,
+    "use_cvar": false,
+    "cvar_max": 0.14,
+    "use_rp_blend": false,
+    "rp_blend_alpha": 0.3,
+    "use_michaud": false,
+    "michaud_n_boot": 50,
+    "rebalance_threshold": 0.03
+  }
+}
