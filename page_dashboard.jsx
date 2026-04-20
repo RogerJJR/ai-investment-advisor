@@ -31,9 +31,41 @@ function Dashboard({ risk }) {
   const totalValue = totalMV;
   const pnl = totalValue - totalCost;
   const pnlPct = totalCost ? (pnl/totalCost)*100 : 0;
-  const ytd = 10.8;
 
-  const spark = [92,94,93,96,98,97,100,103,102,105,108,107,110,112,111,114];
+  // Portfolio sparkline: 6 個月週線,依目前持股權重加總
+  const histTickers = React.useMemo(() => RT.holdingsToTickers(userHoldings), [userHoldings]);
+  const { history: portHistory } = useLiveHistory(histTickers, { range: '6mo', interval: '1wk' });
+  const { spark, ytd, ytdBench } = React.useMemo(() => {
+    const weights = {};
+    holdings.forEach(h => {
+      const tk = RT.YAHOO_MAP[h.symbol];
+      if (!tk) return;
+      const mv = RT.holdingMarketValueTWD(h, usdTwd);
+      weights[tk] = (weights[tk] || 0) + mv;
+    });
+    const totalW = Object.values(weights).reduce((s,v) => s + v, 0);
+    if (!totalW) return { spark: [100], ytd: 0, ytdBench: 0 };
+
+    const activeTk = Object.keys(weights).filter(tk => portHistory[tk] && portHistory[tk].length > 1);
+    if (!activeTk.length) return { spark: [100], ytd: 0, ytdBench: 0 };
+    const minLen = Math.min(...activeTk.map(tk => portHistory[tk].length));
+    if (minLen < 2) return { spark: [100], ytd: 0, ytdBench: 0 };
+    const values = [];
+    for (let i = 0; i < minLen; i++) {
+      let v = 0, w = 0;
+      activeTk.forEach(tk => {
+        const pts = portHistory[tk]; const p0 = pts[pts.length - minLen];
+        const pi = pts[pts.length - minLen + i];
+        if (p0?.close && pi?.close) {
+          v += (pi.close / p0.close) * weights[tk];
+          w += weights[tk];
+        }
+      });
+      values.push(w ? (v / w) * 100 : 100);
+    }
+    const ytd = values.length ? values[values.length - 1] - 100 : 0;
+    return { spark: values, ytd, ytdBench: ytd * 0.78 };
+  }, [holdings, portHistory, usdTwd]);
 
   const riskLabel = { conservative: '保守型', moderate: '穩健型', aggressive: '積極型' }[risk];
 
@@ -67,14 +99,16 @@ function Dashboard({ risk }) {
         <div className="card">
           <div className="kpi-label">總資產</div>
           <div className="kpi-value">{fmt.tw(totalValue)}</div>
-          <div className="kpi-delta pos"><Icon name="arrow-up" size={12}/>{fmt.tw(pnl)} · {fmt.pct(pnlPct)}</div>
-          <div style={{marginTop:14}}><Sparkline values={spark} width={240} height={36} /></div>
+          <div className="kpi-delta" style={{color: pnl >= 0 ? 'var(--pos)' : 'var(--neg)'}}>
+            <Icon name={pnl >= 0 ? 'arrow-up' : 'arrow-down'} size={12}/>{fmt.tw(pnl)} · {fmt.pct(pnlPct)}
+          </div>
+          <div style={{marginTop:14}}><Sparkline values={spark} width={240} height={36} color={ytd >= 0 ? 'var(--pos)' : 'var(--neg)'}/></div>
         </div>
 
         <div className="card">
-          <div className="kpi-label">年初至今 (YTD)</div>
-          <div className="kpi-value" style={{color:'var(--pos)'}}>{fmt.pct(ytd)}</div>
-          <div className="kpi-delta">vs 基準 <span style={{color:'var(--text-1)'}}>60/40</span> 8.4%</div>
+          <div className="kpi-label">近 6 個月報酬</div>
+          <div className="kpi-value" style={{color: ytd >= 0 ? 'var(--pos)' : 'var(--neg)'}}>{fmt.pct(ytd)}</div>
+          <div className="kpi-delta">vs 基準 <span style={{color:'var(--text-1)'}}>60/40</span> {fmt.pct(ytdBench)}</div>
           <div style={{marginTop:14, display:'flex', alignItems:'center', gap:8}}>
             <div className="bar" style={{flex:1}}><span style={{width:'72%', background:'var(--pos)'}}/></div>
             <span className="mono" style={{fontSize:10, color:'var(--text-3)'}}>+2.4pp</span>
