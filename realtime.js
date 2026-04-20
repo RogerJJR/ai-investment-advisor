@@ -449,6 +449,17 @@
     return rets;
   }
 
+  // Re-render hook: returns `Date.now()` refreshed every `intervalMs`.
+  // Components that read `relTime(updatedAt)` can call this to keep labels fresh.
+  function useNow(intervalMs = 15000) {
+    const [, force] = React.useState(0);
+    React.useEffect(() => {
+      const t = setInterval(() => force((x) => x + 1), intervalMs);
+      return () => clearInterval(t);
+    }, [intervalMs]);
+    return Date.now();
+  }
+
   window.RT = {
     YAHOO_MAP,
     INDEX_MAP,
@@ -474,6 +485,7 @@
   window.useLiveHistory = useLiveHistory;
   window.useLiveNews = useLiveNews;
   window.useHoldings = useHoldings;
+  window.useNow = useNow;
   window.RT.getHoldings = getHoldings;
   window.RT.setHoldings = setHoldingsStore;
   window.RT.resetHoldings = resetHoldingsStore;

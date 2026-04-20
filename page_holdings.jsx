@@ -14,6 +14,7 @@ function guessSectorType(symbol) {
 }
 
 function Holdings() {
+  useNow(15000);
   const [userHoldings, setHoldings] = useHoldings();
   const [editing, setEditing] = React.useState(null);
   const [showAdd, setShowAdd] = React.useState(false);

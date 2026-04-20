@@ -6,23 +6,28 @@ const MACRO_LIVE = {
 };
 
 function Dashboard({ risk }) {
+  useNow(15000);
   const [userHoldings] = useHoldings();
-  const holdingTickers = RT.holdingsToTickers(userHoldings);
-  const macroTickers = Object.values(MACRO_LIVE).map(m => m.ticker);
-  const allTickers = [...new Set([...holdingTickers, ...macroTickers])];
+  const allTickers = React.useMemo(() => {
+    const ht = RT.holdingsToTickers(userHoldings);
+    const mt = Object.values(MACRO_LIVE).map(m => m.ticker);
+    return [...new Set([...ht, ...mt])];
+  }, [userHoldings]);
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(allTickers, { intervalMs: 60000 });
-  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
+  const holdings = React.useMemo(() => RT.applyQuotesToHoldings(userHoldings, quotes), [userHoldings, quotes]);
   const liveCount = holdings.filter(h => h.live).length;
   const usdTwd = quotes['TWD=X']?.price;
-  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
-  const totalMV = RT.totalValueTWD(holdings, usdTwd);
-  const liveSignals = status === 'live'
-    ? [...RT.generateAllocationSignals(liveAllocation, totalMV), ...DATA.signals.filter(s => s.type !== 'rebalance' && s.type !== 'concentration')]
-    : DATA.signals;
+  const liveAllocation = React.useMemo(() => RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd), [holdings, usdTwd]);
+  const totalMV = React.useMemo(() => RT.totalValueTWD(holdings, usdTwd), [holdings, usdTwd]);
+  const liveSignals = React.useMemo(() => (
+    status === 'live'
+      ? [...RT.generateAllocationSignals(liveAllocation, totalMV), ...DATA.signals.filter(s => s.type !== 'rebalance' && s.type !== 'concentration')]
+      : DATA.signals
+  ), [status, liveAllocation, totalMV]);
   const absDeviation = liveAllocation.reduce((s,a) => s + Math.abs(a.current - a.target), 0);
   const needRebalance = liveAllocation.filter(a => Math.abs(a.current - a.target) >= 3).length;
 
-  const totalCost = RT.totalCostTWD(holdings, usdTwd);
+  const totalCost = React.useMemo(() => RT.totalCostTWD(holdings, usdTwd), [holdings, usdTwd]);
   const totalValue = totalMV;
   const pnl = totalValue - totalCost;
   const pnlPct = totalCost ? (pnl/totalCost)*100 : 0;

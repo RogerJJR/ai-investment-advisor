@@ -20,6 +20,7 @@ function saveSignalState(state) {
 }
 
 function Signals() {
+  useNow(15000);
   const [userHoldings] = useHoldings();
   const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
   const { quotes, status, updatedAt } = useLiveQuotes(tickers, { intervalMs: 60000 });

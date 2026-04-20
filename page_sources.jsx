@@ -1,5 +1,6 @@
 // Data sources page
 function Sources() {
+  useNow(15000);
   const [cat, setCat] = React.useState('全部');
 
   // Build news queries from holdings + broad market terms
