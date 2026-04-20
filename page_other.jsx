@@ -67,6 +67,7 @@ const BT_TICKER_LABEL = {
 function Backtest() {
   const [preset, setPreset] = React.useState('AI 建議');
   const [excluded, setExcluded] = React.useState(() => new Set());
+  const [rangeYears, setRangeYears] = React.useState(10); // 3 | 5 | 10 | 0(all)
   const tickers = [...new Set([...Object.keys(BT_WEIGHTS), ...Object.keys(BT_BENCHMARK)])];
   const { history, status, error } = useLiveHistory(tickers, { range: '10y', interval: '1mo' });
 
@@ -76,8 +77,9 @@ function Backtest() {
     return Object.fromEntries(active.map(([t, w]) => [t, w / total]));
   }, [excluded]);
 
-  const aiAnnual   = computePortfolioAnnual(history, effectiveWeights);
-  const benchAnnual = computePortfolioAnnual(history, BT_BENCHMARK);
+  const clipRange = (annual) => (rangeYears > 0 && annual.length > rangeYears) ? annual.slice(-rangeYears) : annual;
+  const aiAnnual    = clipRange(computePortfolioAnnual(history, effectiveWeights));
+  const benchAnnual = clipRange(computePortfolioAnnual(history, BT_BENCHMARK));
   const aiStats    = computeStats(aiAnnual);
   const benchStats = computeStats(benchAnnual);
 
@@ -122,6 +124,16 @@ function Backtest() {
           </div>
         </div>
         <div className="actions">
+          <div className="seg" title="回測期間(從最新的那一年往回推)">
+            {[
+              { y: 3,  label: '3 年' },
+              { y: 5,  label: '5 年' },
+              { y: 10, label: '10 年' },
+              { y: 0,  label: '全部' },
+            ].map(r => (
+              <button key={r.y} className={rangeYears===r.y?'active':''} onClick={()=>setRangeYears(r.y)}>{r.label}</button>
+            ))}
+          </div>
           <button className="btn"><Icon name="download" size={14}/>匯出報告</button>
         </div>
       </div>
