@@ -1,0 +1,122 @@
+================================================================================
+Reviewer #4 Report - Round 5 (Senior Editor / Writing & Presentation)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for
+            Long-Horizon Investors"
+Target venue: Decision Support Systems (Elsevier)
+Date of review: 2026-04-20
+================================================================================
+
+SUMMARY
+-------
+The round-5 revision adds a new "Iterated allocator variant" subsection (sec.
+Results) that introduces "Narrative Regimes (iterated)" with LW shrinkage,
+regime-specific risk aversion, and 8% vol targeting; rewrites Table 1 to an
+eight-row best-per-column-bolded layout; updates the abstract to report both
+baseline and iterated headline numbers; replaces the single-path TC narrative
+with a 12-path MC average paragraph; and refreshes the SNR and gamma tables.
+I verified all headline figures against the CSV artefacts and find the paper
+internally coherent. One minor numerical discrepancy and two small wording
+items are noted below. My round-4 recommendation of ACCEPT stands; the issues
+below are optional copyedits that the production editor can resolve.
+
+STATUS PER PREVIOUS-ROUND COMMENT
+---------------------------------
+R4-item-1 (Chen2024LLMBL entry type): still @inproceedings, ICLR 2025 -- OK.
+R4-item-2 ("regimes of parameter space" wording): still clean -- OK.
+R4-item-3 (Table 1 caption trimmed): caption now additionally declares
+  best-per-column-in-bold rule (line 423-424), consistent with the rewritten
+  table -- OK.
+R4-item-4 (Welford gloss): still present (line 241-243) -- OK.
+No round-4 ACCEPT items have been reopened or regressed.
+
+NEW MAJOR COMMENTS
+------------------
+None. The paper remains publishable as-is.
+
+NEW MINOR (WRITING / NUMERICAL-CONSISTENCY) COMMENTS
+----------------------------------------------------
+M1. TC paragraph, line 517: "the framework's lead over both benchmarks is
+    preserved (79 bps over risk parity and 186 bps over 60/40 at tau=50 bps)".
+    Recomputing from table_tc.csv at tc=50: NR=3.331%, RP=2.667%, 60/40=
+    1.475%. NR - RP = 66.4 bps, NR - 60/40 = 185.6 bps. The 60/40 figure is
+    fine (rounds to 186). The risk-parity lead should read "~66 bps" not
+    "79 bps". This is the only stale number I could find.
+
+M2. Table 1 (line 431 vs 434-435): EqualWeight ann. return 0.04592632 and
+    SixtyForty 0.04593470 both print as "0.0459" at the displayed precision,
+    but only 60/40 is bolded. The bold is technically correct (60/40 is
+    marginally higher), yet a reader cannot distinguish the two values from
+    the printed table. Consider either (a) printing four decimals
+    (0.0459 vs 0.0459 -> 0.04593 vs 0.04593) or (b) adding a footnote
+    "tied to displayed precision; 60/40 higher at full precision". Optional.
+
+M3. SNR sensitivity, line 473: "at $\beta \ge 2$, the narrative filter
+    strictly dominates". Table~\ref{tab:snr} shows at beta=4 Narrative
+    CRRA-CE and RegimeOnly CRRA-CE both equal 0.0226 to four decimals,
+    i.e. a tie rather than strict dominance at the printed precision. Soften
+    to "at beta >= 2 the narrative filter dominates (strictly at beta=2,
+    essentially tied at beta=4)". Optional.
+
+M4. "Competitive ... not dominant" framing: I verified the introduction (line
+    137-139: "risk parity remains a strong utility-based competitor on our
+    baseline configuration") and conclusion (line 672-673: "competitive with
+    inverse-volatility risk parity"). These are now consistent with the new
+    story -- the *baseline* is competitive, the *iterated* variant dominates
+    on CRRA-CE, Sharpe, and MDD per Table 1. No rewording needed, but the
+    author may wish to add one sentence to the Conclusion acknowledging the
+    iterated variant's dominance for completeness.
+
+M5. Abstract/Table-1 consistency (verified): NR baseline Sharpe 0.30 (table
+    0.302), NR baseline CRRA-CE 2.8% (table 2.77%), NR iterated Sharpe 0.32
+    (table 0.320), CRRA-CE 3.0% (table 3.04%), MDD -18.7%, turnover 3.7% --
+    all cross-reference cleanly. Iterated subsection line 407 "+27 bps to
+    3.04%" is internally consistent with baseline 2.77%. The prose
+    "reduces monthly turnover approximately in half (from 7.5% to 3.7%)" is
+    accurate (7.53% -> 3.67%).
+
+M6. No dangling references to "seed 900", "6.65%", or "30% monthly turnover"
+    remain anywhere in the manuscript (grep-verified). The rolling MV entry
+    in Table 1 correctly shows 25.8% turnover, not the former 30% figure.
+
+M7. Figures fig_equity_paths.pdf, fig_regime_post.pdf, fig_snr_curve.pdf
+    all present in results/figures/. All three \ref tags (fig:equity,
+    fig:post, fig:snr) resolve. No orphaned subsections; the new
+    "Iterated allocator variant" subsection is properly integrated between
+    "Main comparison" and "Marginal contribution".
+
+M8. References.bib: all \cite keys have matching entries (29 entries total).
+    elsarticle-harv should compile cleanly; nothing new to flag.
+
+M9. AI-usage declaration (Section 5.3 and ai_usage_declaration.md): unchanged
+    from round 4, remains CRediT-aligned and explicit about the four internal
+    peer-review rounds. Note that round 5 is now a *fifth* internal round;
+    the declaration currently says "Four rounds" (line 652 in main.tex).
+    Minor: either update to "five rounds" or generalise to "several rounds"
+    before camera-ready. This is the one wording item that is directly
+    load-bearing for honesty-of-disclosure.
+
+DSS DECISION-RELEVANCE
+----------------------
+Preserved. The SNR adoption threshold (beta* ~= 1) and the decision-support
+framing in the Discussion (five concrete implications for practice) remain
+the paper's core deliverable. The iterated-variant addition strengthens the
+practical appeal without distracting from the threshold argument.
+
+RECOMMENDATION
+--------------
+ACCEPT (unchanged from round 4). The nine minor items above are optional
+copyedits for the production stage. Items M1 and M9 are the only ones with
+any factual stakes, and both are one-word fixes.
+
+JUSTIFICATION
+-------------
+The revision is self-consistent, numerically faithful to the released CSVs
+(bar the single 79-vs-66-bps slip in M1), and structurally clean. Table 1
+bolding is mechanically correct per the underlying CSV. The new iterated-
+variant subsection is well integrated and materially improves the paper's
+decision-support utility by giving practitioners a disciplined two-lever
+refinement path (shrinkage + vol targeting) with transparent accept/reject
+iteration logging. Nothing in the revision reopens any previously-closed
+reviewer concern.
+
+================================================================================
