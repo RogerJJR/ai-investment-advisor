@@ -39,7 +39,31 @@ function Sources() {
   const allSources = [...asStaticLike, ...DATA.sources];
 
   const cats = ['全部', '總經', '央行', '財報', '新聞', '評等', 'ETF', '技術', '情緒'];
-  const filtered = cat === '全部' ? allSources : allSources.filter(s => s.cat === cat);
+  const [query, setQuery] = React.useState('');
+  const q = query.trim().toLowerCase();
+  const byCat = cat === '全部' ? allSources : allSources.filter(s => s.cat === cat);
+  const filtered = !q ? byCat : byCat.filter(s =>
+    (s.title || '').toLowerCase().includes(q) ||
+    (s.summary || '').toLowerCase().includes(q) ||
+    (s.provider || '').toLowerCase().includes(q) ||
+    (s.tag || '').toLowerCase().includes(q)
+  );
+
+  const highlight = (text) => {
+    if (!q || !text) return text;
+    const src = String(text);
+    const lo = src.toLowerCase();
+    const parts = [];
+    let i = 0;
+    while (i < src.length) {
+      const idx = lo.indexOf(q, i);
+      if (idx === -1) { parts.push(src.slice(i)); break; }
+      if (idx > i) parts.push(src.slice(i, idx));
+      parts.push(<mark key={parts.length} style={{background:'var(--accent-soft-2)', color:'var(--accent)', padding:'0 2px', borderRadius:3}}>{src.slice(idx, idx + q.length)}</mark>);
+      i = idx + q.length;
+    }
+    return parts;
+  };
 
   const [selectedId, setSelectedId] = React.useState(null);
   const selected = filtered.find(s => (s.id || s.title) === selectedId) || filtered[0] || DATA.sources[1];
@@ -133,7 +157,37 @@ function Sources() {
                 <button key={c} className={cat===c?'active':''} onClick={()=>setCat(c)}>{c}</button>
               ))}
             </div>
+            <div style={{marginLeft:'auto', position:'relative', display:'flex', alignItems:'center'}}>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="搜尋標題、摘要、來源"
+                style={{
+                  width: 200, padding:'5px 26px 5px 10px', fontSize:11,
+                  background:'var(--bg-2)', border:'1px solid var(--line)',
+                  borderRadius:6, color:'var(--text-1)', outline:'none',
+                }}
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery('')}
+                  aria-label="清除搜尋"
+                  style={{
+                    position:'absolute', right:4, width:18, height:18,
+                    display:'grid', placeItems:'center',
+                    background:'transparent', border:0, cursor:'pointer',
+                    color:'var(--text-3)',
+                  }}
+                ><Icon name="close" size={10}/></button>
+              )}
+            </div>
           </div>
+          {q && (
+            <div style={{padding:'6px 16px', borderBottom:'1px solid var(--line)', fontSize:10, color:'var(--text-3)', background:'var(--bg-2)'}}>
+              找到 <b style={{color:'var(--text-1)'}}>{filtered.length}</b> 則符合「<b style={{color:'var(--accent)'}}>{query}</b>」的資料
+            </div>
+          )}
           <div>
             {newsStatus === 'loading' && liveNews.length === 0 && (
               <div>
@@ -153,8 +207,8 @@ function Sources() {
             {filtered.length === 0 && newsStatus !== 'loading' && (
               <div className="empty-state">
                 <div className="empty-icon"><Icon name="database" size={18}/></div>
-                <div className="empty-title">此分類暫無資料</div>
-                <div>切換類別或點「同步最新」重新抓取。</div>
+                <div className="empty-title">{q ? '找不到符合的資料' : '此分類暫無資料'}</div>
+                <div>{q ? '試試其他關鍵字,或清除搜尋條件。' : '切換類別或點「同步最新」重新抓取。'}</div>
               </div>
             )}
             {filtered.map((s, i) => {
@@ -169,10 +223,10 @@ function Sources() {
                     {s.live && <span className="chip accent" style={{fontSize:9, padding:'0 4px'}}><span className="dot pulse" style={{width:4, height:4}}/>即時</span>}
                     <span style={{fontSize:10, color:'var(--text-3)', marginLeft:'auto'}} className="mono">{s.ts}</span>
                   </div>
-                  <div style={{fontSize:13, color:'var(--text-0)', marginBottom:4, fontWeight:500}}>{s.title}</div>
+                  <div style={{fontSize:13, color:'var(--text-0)', marginBottom:4, fontWeight:500}}>{highlight(s.title)}</div>
                   <div style={{display:'flex', gap:6, alignItems:'center'}}>
-                    <span className="source"><b>{s.provider}</b></span>
-                    <span style={{fontSize:10, color:'var(--text-3)'}}>· 標籤 {s.tag}</span>
+                    <span className="source"><b>{highlight(s.provider)}</b></span>
+                    <span style={{fontSize:10, color:'var(--text-3)'}}>· 標籤 {highlight(s.tag)}</span>
                   </div>
                 </div>
               );
@@ -187,12 +241,12 @@ function Sources() {
               <ImpactPill level={selected.impact}/>
               <span className="source" style={{marginLeft:'auto'}}><b>{selected.provider}</b></span>
             </div>
-            <h3 style={{margin:'0 0 10px', fontSize:15, fontWeight:500, lineHeight:1.4}}>{selected.title}</h3>
+            <h3 style={{margin:'0 0 10px', fontSize:15, fontWeight:500, lineHeight:1.4}}>{highlight(selected.title)}</h3>
             <div style={{fontSize:11, color:'var(--text-3)', marginBottom:14}} className="mono">{selected.ts}</div>
 
             <div className="card-title" style={{fontSize:10, marginBottom:8}}>{selected.live ? '原文摘要' : 'AI 摘要'}</div>
             <p style={{margin:'0 0 14px', fontSize:12, color:'var(--text-1)', lineHeight:1.7}}>
-              {selected.summary || 'Fed 3 月會議紀要顯示多數委員傾向在第二季維持利率不變,需要看到 CPI 連續 2 個月低於 2.5% 才會考慮降息。市場將此解讀為「偏鷹」,美債殖利率短線上升 8bps。'}
+              {selected.summary ? highlight(selected.summary) : 'Fed 3 月會議紀要顯示多數委員傾向在第二季維持利率不變,需要看到 CPI 連續 2 個月低於 2.5% 才會考慮降息。市場將此解讀為「偏鷹」,美債殖利率短線上升 8bps。'}
             </p>
 
             <div className="card-title" style={{fontSize:10, marginBottom:8}}>對你的投資組合影響</div>
