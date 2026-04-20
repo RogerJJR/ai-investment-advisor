@@ -214,7 +214,11 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
   const [monthly, setMonthly]   = React.useState(initial.monthly ?? 30000);
   const [target,  setTarget]    = React.useState(initial.target  ?? 15000000);
   const [avoid,   setAvoid]     = React.useState(initial.avoid   ?? []);
-  React.useEffect(() => { savePrefs({ horizon, monthly, target, avoid }); }, [horizon, monthly, target, avoid]);
+  const [notify,  setNotify]    = React.useState(initial.notify  ?? '每日摘要');
+  const [detail,  setDetail]    = React.useState(initial.detail  ?? '帶理由');
+  const [tone,    setTone]      = React.useState(initial.tone    ?? '教練式');
+  React.useEffect(() => { savePrefs({ horizon, monthly, target, avoid, notify, detail, tone }); },
+    [horizon, monthly, target, avoid, notify, detail, tone]);
   const toggleAvoid = (t) => setAvoid(avoid.includes(t) ? avoid.filter(x => x !== t) : [...avoid, t]);
   return (
     <>
@@ -286,15 +290,16 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
         <div className="card-title" style={{marginBottom:14}}>AI 溝通偏好</div>
         <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:14}}>
           {[
-            { title:'通知頻率', options:['即時','每日摘要','每週','僅高優先'], default:'每日摘要' },
-            { title:'解釋詳細度', options:['簡短結論','帶理由','完整推理','數據細節'], default:'帶理由' },
-            { title:'AI 口吻', options:['直接','教練式','保守謹慎','數據導向'], default:'教練式' },
+            { title:'通知頻率',   options:['即時','每日摘要','每週','僅高優先'], value:notify, set:setNotify },
+            { title:'解釋詳細度', options:['簡短結論','帶理由','完整推理','數據細節'], value:detail, set:setDetail },
+            { title:'AI 口吻',   options:['直接','教練式','保守謹慎','數據導向'], value:tone,   set:setTone },
           ].map(g => (
             <div key={g.title}>
               <label className="field-label">{g.title}</label>
               <div style={{display:'flex', gap:4, flexDirection:'column'}}>
                 {g.options.map(o => (
-                  <div key={o} style={{padding:'8px 10px', border:'1px solid ' + (o===g.default?'var(--accent)':'var(--line)'), borderRadius:'var(--radius)', fontSize:12, cursor:'pointer', background: o===g.default?'var(--accent-soft-2)':'transparent', color:o===g.default?'var(--accent)':'var(--text-1)'}}>
+                  <div key={o} onClick={()=>g.set(o)}
+                       style={{padding:'8px 10px', border:'1px solid ' + (o===g.value?'var(--accent)':'var(--line)'), borderRadius:'var(--radius)', fontSize:12, cursor:'pointer', background: o===g.value?'var(--accent-soft-2)':'transparent', color:o===g.value?'var(--accent)':'var(--text-1)'}}>
                     {o}
                   </div>
                 ))}
@@ -330,6 +335,20 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
   );
 }
 
+const CHAT_KEY = 'ai-advisor-chat-v1';
+const CHAT_INTRO = { role:'ai', text:'嗨,我是你的投資配置助理。你可以問我任何關於目前持股、配置、市場事件的問題,我會結合你的個人資料與即時行情回答。' };
+function loadChat() {
+  try {
+    const raw = localStorage.getItem(CHAT_KEY);
+    if (!raw) return [CHAT_INTRO];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed.map(m => ({ ...m, loading: false })) : [CHAT_INTRO];
+  } catch { return [CHAT_INTRO]; }
+}
+function saveChat(msgs) {
+  try { localStorage.setItem(CHAT_KEY, JSON.stringify(msgs.filter(m => !m.loading))); } catch {}
+}
+
 function Chat() {
   const [userHoldings] = useHoldings();
   const tickers = RT.holdingsToTickers(userHoldings);
@@ -340,10 +359,17 @@ function Chat() {
   const totalMV = RT.totalValueTWD(holdings, usdTwd);
   const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
 
-  const [msgs, setMsgs] = React.useState([
-    { role:'ai', text:'嗨,我是你的投資配置助理。你可以問我任何關於目前持股、配置、市場事件的問題,我會結合你的個人資料與即時行情回答。' },
-  ]);
+  const [msgs, setMsgs] = React.useState(loadChat);
+  React.useEffect(() => { saveChat(msgs); }, [msgs]);
   const [input, setInput] = React.useState('');
+  const scrollRef = React.useRef(null);
+  React.useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [msgs]);
+  const clearChat = () => {
+    if (!confirm('清除對話紀錄?此動作無法復原。')) return;
+    setMsgs([CHAT_INTRO]);
+  };
 
   const buildContext = () => {
     const allocLine = liveAllocation.map(a => `${a.name} ${a.current.toFixed(1)}%`).join('、');
@@ -398,13 +424,13 @@ function Chat() {
           <p>用自然語言問問題。AI 會結合你的持股、風險偏好與 142 個資料來源即時回答。</p>
         </div>
         <div className="actions">
-          <button className="btn"><Icon name="history" size={14}/>歷史</button>
+          <button className="btn" onClick={clearChat} title="清除對話紀錄"><Icon name="trash" size={14}/>清除</button>
         </div>
       </div>
 
       <div style={{display:'grid', gridTemplateColumns:'1fr 280px', gap:'var(--density-gap)', height:'calc(100vh - 200px)'}}>
         <div className="card" style={{display:'flex', flexDirection:'column', padding:0}}>
-          <div style={{flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14}}>
+          <div ref={scrollRef} style={{flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14}}>
             {msgs.map((m, i) => (
               <div key={i} style={{display:'flex', gap:10, alignSelf: m.role==='user'?'flex-end':'flex-start', maxWidth:'80%'}}>
                 {m.role === 'ai' && <div style={{width:26, height:26, borderRadius:'50%', background:'var(--accent-soft)', color:'var(--accent)', display:'grid', placeItems:'center', flexShrink:0, fontSize:10, fontWeight:700}}>AI</div>}
