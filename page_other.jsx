@@ -543,6 +543,81 @@ function Chat() {
       <div style={{display:'grid', gridTemplateColumns:'1fr 280px', gap:'var(--density-gap)', height:'calc(100vh - 200px)'}}>
         <div className="card" style={{display:'flex', flexDirection:'column', padding:0}}>
           <div ref={scrollRef} style={{flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14}}>
+            {msgs.length <= 1 && (() => {
+              const topSym = holdings.filter(h => h.symbol !== 'CASH').sort((a,b) => (b.weight||0) - (a.weight||0))[0]?.symbol;
+              const needRebalance = liveAllocation.filter(a => Math.abs(a.current - a.target) >= 3).length;
+              const catalog = [
+                {
+                  title: '配置檢查',
+                  icon: 'dashboard',
+                  prompts: [
+                    needRebalance > 0 ? `目前有 ${needRebalance} 項偏離目標,建議優先處理哪一項?` : '目前配置與目標很接近,有什麼潛在風險?',
+                    '我的股債比合理嗎?為什麼?',
+                    '幫我檢視這個月是否需要再平衡',
+                  ],
+                },
+                {
+                  title: '市場解讀',
+                  icon: 'sparkles',
+                  prompts: [
+                    '最近美債殖利率變化對我的投資組合有什麼影響?',
+                    'VIX 現在的水位代表什麼?',
+                    'USD/TWD 走勢會影響我的海外部位嗎?',
+                  ],
+                },
+                {
+                  title: '持股操作',
+                  icon: 'portfolio',
+                  prompts: [
+                    topSym ? `${topSym} 權重偏高,是否該部分獲利了結?` : '我有單一持股權重過高的問題嗎?',
+                    '若加碼 BND 30 萬元,對整體風險的影響?',
+                    '有哪些持股可以考慮汰換為更適合的 ETF?',
+                  ],
+                },
+                {
+                  title: '長期規劃',
+                  icon: 'history',
+                  prompts: [
+                    '以目前進度,我能在目標年限達到設定金額嗎?',
+                    '若我把月定投從 3 萬提高到 5 萬,差多少?',
+                    '給我一份本月的投資組合摘要',
+                  ],
+                },
+              ];
+              return (
+                <div style={{margin:'8px 0'}}>
+                  <div style={{fontSize:11, color:'var(--text-3)', marginBottom:10, letterSpacing:'0.04em'}}>💡 試試這些起始問題,或直接輸入你的問題</div>
+                  <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+                    {catalog.map(cat => (
+                      <div key={cat.title} style={{padding:12, border:'1px solid var(--line)', borderRadius:'var(--radius)', background:'var(--bg-2)'}}>
+                        <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:8, color:'var(--accent)'}}>
+                          <Icon name={cat.icon} size={12}/>
+                          <span style={{fontSize:11, fontWeight:500, letterSpacing:'0.04em'}}>{cat.title}</span>
+                        </div>
+                        <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                          {cat.prompts.map((p, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setInput(p)}
+                              style={{
+                                textAlign:'left', padding:'6px 8px', fontSize:11.5,
+                                color:'var(--text-1)', background:'transparent',
+                                border:'1px solid var(--line)', borderRadius:4,
+                                cursor:'pointer', lineHeight:1.5,
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-3)'; e.currentTarget.style.borderColor = 'var(--accent-soft)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--line)'; }}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {msgs.map((m, i) => {
               const rendered = m.loading ? null : (m.html ? m.text : mdToHtml(m.text));
               return (
