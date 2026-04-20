@@ -1,7 +1,15 @@
 // Dashboard page
+const MACRO_LIVE = {
+  '美國 10Y 殖利率': { ticker: '^TNX',  suffix: '%', digits: 2 },
+  'VIX 恐慌指數':    { ticker: '^VIX',  suffix: '',  digits: 1 },
+  'USD/TWD':         { ticker: 'TWD=X', suffix: '',  digits: 2 },
+};
+
 function Dashboard({ risk }) {
-  const tickers = RT.holdingsToTickers(DATA.holdings);
-  const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const holdingTickers = RT.holdingsToTickers(DATA.holdings);
+  const macroTickers = Object.values(MACRO_LIVE).map(m => m.ticker);
+  const allTickers = [...new Set([...holdingTickers, ...macroTickers])];
+  const { quotes, status, updatedAt, refresh } = useLiveQuotes(allTickers, { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
 
@@ -132,23 +140,41 @@ function Dashboard({ risk }) {
               <div className="card-title">總經快照</div>
               <div className="card-sub">AI 判斷的核心變量 · 即時</div>
             </div>
-            <button className="btn ghost" style={{height:28, fontSize:11}}><Icon name="refresh" size={11}/>3 分鐘前</button>
+            <button className="btn ghost" style={{height:28, fontSize:11}} onClick={refresh}><Icon name="refresh" size={11}/>{updatedAt ? RT.relTime(updatedAt) : '重新整理'}</button>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
-            {DATA.macro.map(m => (
-              <div key={m.label} style={{display:'flex', flexDirection:'column', gap:4, padding:'8px 0', borderBottom:'1px dashed var(--line)'}}>
-                <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--text-3)'}}>
-                  <span>{m.label}</span>
-                  <span className="source"><b>{m.source}</b></span>
+            {DATA.macro.map(m => {
+              const live = MACRO_LIVE[m.label];
+              const q = live ? quotes[live.ticker] : null;
+              const isLive = q && q.price != null;
+              const value = isLive
+                ? q.price.toFixed(live.digits) + live.suffix
+                : m.value;
+              const chg = isLive ? q.changePct : null;
+              const trend = isLive
+                ? (chg > 0.05 ? 'up' : chg < -0.05 ? 'down' : 'flat')
+                : m.trend;
+              const delta = isLive
+                ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%'
+                : m.delta;
+              return (
+                <div key={m.label} style={{display:'flex', flexDirection:'column', gap:4, padding:'8px 0', borderBottom:'1px dashed var(--line)'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--text-3)'}}>
+                    <span style={{display:'inline-flex', alignItems:'center', gap:6}}>
+                      {m.label}
+                      {isLive && <span className="dot pulse" style={{width:5, height:5, borderRadius:'50%', background:'var(--pos)', display:'inline-block'}}/>}
+                    </span>
+                    <span className="source"><b>{isLive ? 'Yahoo' : m.source}</b></span>
+                  </div>
+                  <div style={{display:'flex', alignItems:'baseline', gap:8}}>
+                    <span className="mono" style={{fontSize:18, color:'var(--text-0)'}}>{value}</span>
+                    <span className="mono" style={{fontSize:11, color: trend==='up'?'var(--pos)':trend==='down'?'var(--neg)':'var(--text-3)'}}>
+                      {trend==='up'?'▲':trend==='down'?'▼':'—'} {delta}
+                    </span>
+                  </div>
                 </div>
-                <div style={{display:'flex', alignItems:'baseline', gap:8}}>
-                  <span className="mono" style={{fontSize:18, color:'var(--text-0)'}}>{m.value}</span>
-                  <span className="mono" style={{fontSize:11, color: m.trend==='up'?'var(--pos)':m.trend==='down'?'var(--neg)':'var(--text-3)'}}>
-                    {m.trend==='up'?'▲':m.trend==='down'?'▼':'—'} {m.delta}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

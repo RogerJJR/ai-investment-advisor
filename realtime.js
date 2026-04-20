@@ -79,6 +79,31 @@
     return out;
   }
 
+  // Yahoo historical closes. range: 1mo|3mo|6mo|1y|2y|5y|10y|max
+  async function fetchYahooHistory(ticker, { range = '10y', interval = '1mo' } = {}) {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+    const json = await fetchWithProxy(url);
+    const r = json?.chart?.result?.[0];
+    if (!r) throw new Error('No history for ' + ticker);
+    const timestamps = r.timestamp || [];
+    const closes = r.indicators?.adjclose?.[0]?.adjclose
+              ?? r.indicators?.quote?.[0]?.close
+              ?? [];
+    return timestamps.map((t, i) => ({
+      date: new Date(t * 1000),
+      close: closes[i],
+    })).filter(p => p.close != null);
+  }
+
+  async function fetchHistoryMany(tickers, opts) {
+    const results = await Promise.allSettled(tickers.map(t => fetchYahooHistory(t, opts)));
+    const out = {};
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') out[tickers[i]] = r.value;
+    });
+    return out;
+  }
+
   // ── React hook ────────────────────────────────────────────────
   const { useState, useEffect, useRef, useCallback } = React;
 
@@ -119,6 +144,36 @@
     return { quotes, status, updatedAt, error, refresh };
   }
 
+  function useLiveHistory(tickers, { range = '10y', interval = '1mo' } = {}) {
+    const [history, setHistory] = useState({});
+    const [status, setStatus] = useState('idle');
+    const [error, setError] = useState(null);
+    const key = tickers.filter(Boolean).join(',') + ':' + range + ':' + interval;
+    const mountedRef = useRef(true);
+
+    useEffect(() => {
+      mountedRef.current = true;
+      if (!tickers.length) return;
+      setStatus('loading');
+      fetchHistoryMany(tickers, { range, interval })
+        .then((data) => {
+          if (!mountedRef.current) return;
+          if (!Object.keys(data).length) throw new Error('No history returned');
+          setHistory(data);
+          setStatus('live');
+          setError(null);
+        })
+        .catch((e) => {
+          if (!mountedRef.current) return;
+          setStatus('error');
+          setError(e.message || String(e));
+        });
+      return () => { mountedRef.current = false; };
+    }, [key]);
+
+    return { history, status, error };
+  }
+
   // Merge live quotes into DATA.holdings, producing a new array.
   function applyQuotesToHoldings(holdings, quotes) {
     return holdings.map((h) => {
@@ -145,14 +200,38 @@
     return `${h} 小時前`;
   }
 
+  // Compute annual returns from a list of monthly close points.
+  function annualReturnsFromMonthly(points) {
+    const byYear = {};
+    points.forEach((p) => {
+      const y = p.date.getUTCFullYear();
+      (byYear[y] ||= []).push(p.close);
+    });
+    const years = Object.keys(byYear).map(Number).sort();
+    const rets = [];
+    years.forEach((y, i) => {
+      if (i === 0) return;
+      const prev = byYear[years[i-1]];
+      const cur  = byYear[y];
+      const start = prev[prev.length - 1];
+      const end   = cur[cur.length - 1];
+      if (start && end) rets.push({ year: y, ret: (end/start - 1) * 100 });
+    });
+    return rets;
+  }
+
   window.RT = {
     YAHOO_MAP,
     INDEX_MAP,
     fetchYahooQuote,
     fetchMany,
+    fetchYahooHistory,
+    fetchHistoryMany,
+    annualReturnsFromMonthly,
     applyQuotesToHoldings,
     holdingsToTickers,
     relTime,
   };
   window.useLiveQuotes = useLiveQuotes;
+  window.useLiveHistory = useLiveHistory;
 })();

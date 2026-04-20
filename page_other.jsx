@@ -1,15 +1,98 @@
 // Backtest + Settings + Chat pages (lighter)
 
+// AI target allocation weights for backtest
+const BT_WEIGHTS = {
+  'VTI':   0.30,  // 美股
+  '0050.TW': 0.22, // 台股
+  'VT':    0.12,  // 全球
+  'BND':   0.20,  // 債券
+  'GLD':   0.08,  // 原物料
+  // 現金 8% → 假設 0% 報酬
+};
+
+const BT_BENCHMARK = { 'VTI': 0.60, 'BND': 0.40 }; // 60/40
+
+function computePortfolioAnnual(history, weights) {
+  // merge all tickers on common year range
+  const perTicker = {};
+  Object.keys(weights).forEach(t => {
+    if (history[t]) perTicker[t] = RT.annualReturnsFromMonthly(history[t]);
+  });
+  if (!Object.keys(perTicker).length) return [];
+  const commonYears = Object.values(perTicker)
+    .map(arr => new Set(arr.map(r => r.year)))
+    .reduce((a, s) => new Set([...a].filter(x => s.has(x))));
+  const years = [...commonYears].sort();
+  // normalise weights based on available tickers
+  const totalW = Object.keys(weights).filter(t => history[t]).reduce((s,t) => s + weights[t], 0) || 1;
+  return years.map(y => {
+    let r = 0;
+    Object.keys(weights).forEach(t => {
+      if (!history[t]) return;
+      const yr = perTicker[t].find(x => x.year === y);
+      if (yr) r += (weights[t] / totalW) * yr.ret;
+    });
+    return { year: y, ret: r };
+  });
+}
+
+function computeStats(annual) {
+  if (!annual.length) return null;
+  const cumulative = annual.reduce((acc, a) => {
+    const last = acc[acc.length-1] ?? 100;
+    return [...acc, last * (1 + a.ret/100)];
+  }, []);
+  const totalRet = (cumulative[cumulative.length-1] / 100 - 1) * 100;
+  const years = annual.length;
+  const cagr = (Math.pow(cumulative[cumulative.length-1] / 100, 1/years) - 1) * 100;
+  // Max drawdown from yearly equity curve
+  let peak = 100, maxDD = 0;
+  [100, ...cumulative].forEach(v => { peak = Math.max(peak, v); maxDD = Math.min(maxDD, (v/peak - 1) * 100); });
+  // Sharpe (annual, rf≈2%)
+  const mean = annual.reduce((s,a) => s + a.ret, 0) / annual.length;
+  const sd = Math.sqrt(annual.reduce((s,a) => s + Math.pow(a.ret - mean, 2), 0) / annual.length);
+  const sharpe = sd ? (mean - 2) / sd : 0;
+  const winRate = annual.filter(a => a.ret > 0).length / annual.length * 100;
+  return { totalRet, cagr, maxDD, sharpe, winRate, cumulative };
+}
+
 function Backtest() {
   const [preset, setPreset] = React.useState('AI 建議');
-  const bt = DATA.backtest;
+  const tickers = [...new Set([...Object.keys(BT_WEIGHTS), ...Object.keys(BT_BENCHMARK)])];
+  const { history, status, error } = useLiveHistory(tickers, { range: '10y', interval: '1mo' });
+
+  const aiAnnual   = computePortfolioAnnual(history, BT_WEIGHTS);
+  const benchAnnual = computePortfolioAnnual(history, BT_BENCHMARK);
+  const aiStats    = computeStats(aiAnnual);
+  const benchStats = computeStats(benchAnnual);
+
+  const isLive = status === 'live' && aiStats;
+  const bt = isLive
+    ? {
+        years: aiAnnual.map(a => a.year),
+        portfolio: aiAnnual.map(a => a.ret),
+        benchmark: benchAnnual.map(a => a.ret),
+      }
+    : DATA.backtest;
+
+  const stats = isLive ? aiStats : null;
+
+  const statusLabel = {
+    idle:'準備中', loading:'正在抓取 10 年歷史資料…', live:'即時歷史資料',
+    error:'歷史資料離線,顯示快照',
+  }[status];
+  const statusColor = status === 'live' ? 'var(--pos)' : status === 'error' ? 'var(--neg)' : 'var(--text-3)';
 
   return (
     <>
       <div className="page-head">
         <div>
           <h1>歷史回測</h1>
-          <p>把 AI 建議的配置,套用到過去 10 年的資料;看看如果一直按此方案執行,今天會是什麼樣子。</p>
+          <p>把 AI 建議的配置,套用到過去 10 年的真實市場資料;看看如果一直按此方案執行,今天會是什麼樣子。</p>
+          <div style={{display:'flex', alignItems:'center', gap:8, marginTop:6, fontSize:11, color:statusColor}}>
+            <span className={'dot ' + (status==='live'?'pulse':'')} style={{width:6, height:6, borderRadius:'50%', background:statusColor, display:'inline-block'}}/>
+            {statusLabel}{isLive && ` · ${tickers.filter(t=>history[t]).length}/${tickers.length} 檔`}
+          </div>
         </div>
         <div className="actions">
           <button className="btn"><Icon name="download" size={14}/>匯出報告</button>
@@ -17,13 +100,19 @@ function Backtest() {
       </div>
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'var(--density-gap)', marginBottom:'var(--density-gap)'}}>
-        {[
+        {(stats ? [
+          { label:`${bt.years.length} 年總報酬`, value: (stats.totalRet>=0?'+':'') + stats.totalRet.toFixed(1)+'%', c: stats.totalRet>=0?'var(--pos)':'var(--neg)' },
+          { label:'年化報酬 (CAGR)', value: stats.cagr.toFixed(1)+'%', c:'var(--text-0)' },
+          { label:'最大回撤', value: stats.maxDD.toFixed(1)+'%', c:'var(--neg)' },
+          { label:'夏普比 (rf=2%)', value: stats.sharpe.toFixed(2), c:'var(--text-0)' },
+          { label:'勝率 / 年', value: stats.winRate.toFixed(0)+'%', c:'var(--pos)' },
+        ] : [
           { label:'10 年總報酬', value:'+142%', c:'var(--pos)' },
           { label:'年化報酬', value:'9.2%', c:'var(--text-0)' },
           { label:'最大回撤', value:'-18.4%', c:'var(--neg)' },
           { label:'夏普比', value:'0.72', c:'var(--text-0)' },
           { label:'勝率 / 年', value:'80%', c:'var(--pos)' },
-        ].map(k => (
+        ]).map(k => (
           <div key={k.label} className="card">
             <div className="kpi-label">{k.label}</div>
             <div className="mono" style={{fontSize:22, marginTop:6, color:k.c}}>{k.value}</div>
