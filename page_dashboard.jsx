@@ -6,11 +6,12 @@ const MACRO_LIVE = {
 };
 
 function Dashboard({ risk }) {
-  const holdingTickers = RT.holdingsToTickers(DATA.holdings);
+  const [userHoldings] = useHoldings();
+  const holdingTickers = RT.holdingsToTickers(userHoldings);
   const macroTickers = Object.values(MACRO_LIVE).map(m => m.ticker);
   const allTickers = [...new Set([...holdingTickers, ...macroTickers])];
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(allTickers, { intervalMs: 60000 });
-  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
   const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
   const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);

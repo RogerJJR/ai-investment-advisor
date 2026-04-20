@@ -1,17 +1,73 @@
 // Holdings page
+const SECTOR_OPTIONS = ['台股','美股','全球','債券','原物料','現金'];
+const TYPE_OPTIONS   = ['台股','台股ETF','美股','美股ETF','全球ETF','債券ETF','黃金ETF','現金','其他'];
+
+function guessSectorType(symbol) {
+  const s = (symbol || '').toUpperCase();
+  if (/^\d{4,6}$/.test(s)) return { sector: '台股', type: /^00/.test(s) ? '台股ETF' : '台股' };
+  if (['VT'].includes(s))  return { sector: '全球', type: '全球ETF' };
+  if (['BND','IEF','TLT','AGG'].includes(s)) return { sector: '債券', type: '債券ETF' };
+  if (['GLD','SLV','IAU'].includes(s)) return { sector: '原物料', type: '黃金ETF' };
+  if (['VTI','VOO','QQQ','SPY','DIA'].includes(s)) return { sector: '美股', type: '美股ETF' };
+  if (s === 'CASH') return { sector: '現金', type: '現金' };
+  return { sector: '美股', type: '美股' };
+}
+
 function Holdings() {
+  const [userHoldings, setHoldings] = useHoldings();
   const [editing, setEditing] = React.useState(null);
   const [showAdd, setShowAdd] = React.useState(false);
+  const [search, setSearch]   = React.useState('');
+  const [filterSector, setFilterSector] = React.useState('全部');
 
-  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const tickers = RT.holdingsToTickers(userHoldings);
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
-  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
 
   const totalCost = holdings.reduce((s,h) => s + h.shares * h.cost, 0);
-  const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0) || 1;
   const unrealized = totalValue - totalCost;
-  const unrealizedPct = (unrealized / totalCost) * 100;
+  const unrealizedPct = totalCost ? (unrealized / totalCost) * 100 : 0;
+
+  const holdingsWithWeight = holdings.map((h) => ({ ...h, weight: (h.shares * h.price / totalValue) * 100 }));
+  const sectorCounts = holdingsWithWeight.reduce((acc, h) => { acc[h.sector] = (acc[h.sector]||0)+1; return acc; }, {});
+
+  const filtered = holdingsWithWeight.filter((h) => {
+    if (filterSector !== '全部' && h.sector !== filterSector) return false;
+    if (search && !(`${h.symbol} ${h.name}`.toLowerCase().includes(search.toLowerCase()))) return false;
+    return true;
+  });
+
+  const addHolding = (data) => {
+    const guess = guessSectorType(data.symbol);
+    const h = {
+      id: 'u' + Date.now().toString(36),
+      symbol: data.symbol.toUpperCase(),
+      name:   data.name || data.symbol.toUpperCase(),
+      type:   data.type   || guess.type,
+      sector: data.sector || guess.sector,
+      shares: Number(data.shares) || 0,
+      price:  Number(data.price)  || Number(data.cost) || 0,
+      cost:   Number(data.cost)   || 0,
+      weight: 0,
+    };
+    setHoldings([...userHoldings, h]);
+  };
+
+  const updateHolding = (id, patch) => {
+    setHoldings(userHoldings.map(h => h.id === id ? { ...h, ...patch } : h));
+  };
+
+  const removeHolding = (id) => {
+    if (!confirm('確定移除這檔持股?此動作無法復原。')) return;
+    setHoldings(userHoldings.filter(h => h.id !== id));
+  };
+
+  const resetToSample = () => {
+    if (!confirm('恢復為示範持股?會覆蓋你目前的持股資料。')) return;
+    RT.resetHoldings();
+  };
 
   const statusLabel = {
     idle: '待連線', loading: '連線中', live: `即時 · ${liveCount}/${holdings.length} 檔`, error: '離線 · 使用快照',
@@ -23,7 +79,7 @@ function Holdings() {
       <div className="page-head">
         <div>
           <h1>持股管理</h1>
-          <p>手動輸入或匯入券商資料。AI 會根據你的實際持股即時更新配置分析與建議。</p>
+          <p>手動輸入或匯入券商資料(儲存在你的瀏覽器,不會上傳)。AI 會根據你的實際持股即時更新配置分析與建議。</p>
           <div style={{display:'flex', alignItems:'center', gap:8, marginTop:6, fontSize:11, color:statusColor}}>
             <span className={'dot ' + (status==='live'?'pulse':'')} style={{width:6, height:6, borderRadius:'50%', background:statusColor, display:'inline-block'}}/>
             {statusLabel}{updatedAt && ` · ${RT.relTime(updatedAt)}`}
@@ -31,6 +87,7 @@ function Holdings() {
         </div>
         <div className="actions">
           <button className="btn" onClick={refresh} title="重新抓取即時行情"><Icon name="refresh" size={14}/>重新整理</button>
+          <button className="btn" onClick={resetToSample} title="恢復示範持股">恢復示範</button>
           <button className="btn"><Icon name="upload" size={14}/>從券商匯入</button>
           <button className="btn"><Icon name="download" size={14}/>CSV / Excel</button>
           <button className="btn primary" onClick={()=>setShowAdd(true)}><Icon name="plus" size={14}/>新增持股</button>
@@ -67,17 +124,15 @@ function Holdings() {
       {/* Filter bar */}
       <div className="card" style={{padding:'10px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:10}}>
         <div className="seg">
-          <button className="active">全部 · {DATA.holdings.length}</button>
-          <button>台股 · 3</button>
-          <button>美股 · 3</button>
-          <button>ETF · 5</button>
-          <button>債券 · 2</button>
-          <button>其他 · 2</button>
+          <button className={filterSector==='全部'?'active':''} onClick={()=>setFilterSector('全部')}>全部 · {holdings.length}</button>
+          {SECTOR_OPTIONS.map(s => (
+            sectorCounts[s] ? <button key={s} className={filterSector===s?'active':''} onClick={()=>setFilterSector(s)}>{s} · {sectorCounts[s]}</button> : null
+          ))}
         </div>
         <div style={{flex:1}}/>
         <div style={{position:'relative'}}>
           <Icon name="search" size={12} style={{position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-3)'}}/>
-          <input className="input" placeholder="搜尋代號 / 名稱" style={{width:220, paddingLeft:30, height:30}}/>
+          <input className="input" placeholder="搜尋代號 / 名稱" value={search} onChange={e=>setSearch(e.target.value)} style={{width:220, paddingLeft:30, height:30}}/>
         </div>
         <button className="icon-btn"><Icon name="filter" size={13}/></button>
       </div>
@@ -101,9 +156,12 @@ function Holdings() {
             </tr>
           </thead>
           <tbody>
-            {holdings.map(h => {
+            {filtered.length === 0 && (
+              <tr><td colSpan={11} style={{textAlign:'center', padding:32, color:'var(--text-3)'}}>沒有符合條件的持股。按右上角「新增持股」開始輸入。</td></tr>
+            )}
+            {filtered.map(h => {
               const mv = h.shares * h.price;
-              const pl = ((h.price - h.cost)/h.cost) * 100;
+              const pl = h.cost ? ((h.price - h.cost)/h.cost) * 100 : 0;
               const dayChg = h.changePct ?? 0;
               return (
                 <tr key={h.id}>
@@ -129,13 +187,13 @@ function Holdings() {
                   <td className="num">
                     <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:2}}>
                       <span>{h.weight.toFixed(1)}%</span>
-                      <div className="bar" style={{width:60}}><span style={{width:h.weight*2+'%'}}/></div>
+                      <div className="bar" style={{width:60}}><span style={{width:Math.min(h.weight*2, 100)+'%'}}/></div>
                     </div>
                   </td>
                   <td>
                     <div style={{display:'flex', gap:4, justifyContent:'flex-end'}}>
-                      <button className="icon-btn" style={{width:26, height:26}} title="編輯"><Icon name="settings" size={11}/></button>
-                      <button className="icon-btn" style={{width:26, height:26}} title="移除"><Icon name="trash" size={11}/></button>
+                      <button className="icon-btn" style={{width:26, height:26}} title="編輯" onClick={()=>setEditing(h)}><Icon name="settings" size={11}/></button>
+                      <button className="icon-btn" style={{width:26, height:26}} title="移除" onClick={()=>removeHolding(h.id)}><Icon name="trash" size={11}/></button>
                     </div>
                   </td>
                 </tr>
@@ -163,58 +221,105 @@ function Holdings() {
         </div>
       </div>
 
-      {showAdd && <AddHoldingModal onClose={()=>setShowAdd(false)}/>}
+      {showAdd && <HoldingFormModal onClose={()=>setShowAdd(false)} onSave={(d)=>{ addHolding(d); setShowAdd(false); }}/>}
+      {editing && <HoldingFormModal holding={editing} onClose={()=>setEditing(null)} onSave={(d)=>{ updateHolding(editing.id, d); setEditing(null); }}/>}
     </>
   );
 }
 
-function AddHoldingModal({ onClose }) {
-  const [sym, setSym] = React.useState('');
-  const [suggestions] = React.useState([
-    { sym:'QQQ', name:'Invesco QQQ Trust', market:'NASDAQ' },
-    { sym:'QUAL', name:'iShares MSCI Quality', market:'NYSE' },
-    { sym:'2412', name:'中華電', market:'TWSE' },
-  ]);
+function HoldingFormModal({ holding, onClose, onSave }) {
+  const isEdit = !!holding;
+  const [sym,    setSym]    = React.useState(holding?.symbol || '');
+  const [name,   setName]   = React.useState(holding?.name   || '');
+  const [shares, setShares] = React.useState(holding ? String(holding.shares) : '');
+  const [cost,   setCost]   = React.useState(holding ? String(holding.cost)   : '');
+  const [sector, setSector] = React.useState(holding?.sector || '');
+  const [type,   setType]   = React.useState(holding?.type   || '');
+  const [lookupStatus, setLookupStatus] = React.useState('idle');
+  const [lookupPrice, setLookupPrice]   = React.useState(null);
+
+  // On blur of symbol, try to lookup via Yahoo to auto-fill name + current price
+  const doLookup = async () => {
+    if (!sym || isEdit) return;
+    const ticker = RT.YAHOO_MAP[sym.toUpperCase()] || (/^\d{4,6}$/.test(sym) ? sym + '.TW' : sym.toUpperCase());
+    setLookupStatus('loading');
+    try {
+      const q = await RT.fetchYahooQuote(ticker);
+      setLookupPrice(q.price);
+      const guess = guessSectorType(sym);
+      if (!sector) setSector(guess.sector);
+      if (!type)   setType(guess.type);
+      setLookupStatus('ok');
+    } catch (e) {
+      setLookupStatus('error');
+    }
+  };
+
+  const save = () => {
+    if (!sym || !shares) return;
+    onSave({
+      symbol: sym,
+      name: name || sym,
+      shares,
+      cost: cost || lookupPrice || 0,
+      price: lookupPrice || cost || 0,
+      sector: sector || guessSectorType(sym).sector,
+      type:   type   || guessSectorType(sym).type,
+    });
+  };
 
   return (
     <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:100, display:'grid', placeItems:'center'}} onClick={onClose}>
-      <div onClick={e=>e.stopPropagation()} style={{width:480, background:'var(--bg-1)', border:'1px solid var(--line-2)', borderRadius:'var(--radius-lg)', padding:22}}>
+      <div onClick={e=>e.stopPropagation()} style={{width:520, background:'var(--bg-1)', border:'1px solid var(--line-2)', borderRadius:'var(--radius-lg)', padding:22}}>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18}}>
-          <h3 style={{margin:0, fontSize:16, fontWeight:500}}>新增持股</h3>
+          <h3 style={{margin:0, fontSize:16, fontWeight:500}}>{isEdit ? '編輯持股' : '新增持股'}</h3>
           <button className="icon-btn" onClick={onClose}><Icon name="close" size={14}/></button>
         </div>
 
-        <label className="field-label">代號</label>
-        <input className="input" placeholder="例如 2330 / VTI / 0050" value={sym} onChange={e=>setSym(e.target.value)}/>
+        <label className="field-label">代號{isEdit && <span style={{color:'var(--text-3)', marginLeft:6, fontSize:10}}>(編輯模式不可變)</span>}</label>
+        <div style={{display:'flex', gap:8}}>
+          <input className="input" placeholder="例如 2330 / VTI / 0050" value={sym} disabled={isEdit}
+                 onChange={e=>setSym(e.target.value)} onBlur={doLookup} style={{flex:1}}/>
+          {!isEdit && <button className="btn" onClick={doLookup} disabled={!sym || lookupStatus==='loading'}>查價</button>}
+        </div>
+        {lookupStatus === 'loading' && <div style={{fontSize:10, color:'var(--text-3)', marginTop:4}}>查詢中…</div>}
+        {lookupStatus === 'ok' && lookupPrice != null && <div style={{fontSize:10, color:'var(--pos)', marginTop:4}}>目前價 {fmt.num(lookupPrice)}</div>}
+        {lookupStatus === 'error' && <div style={{fontSize:10, color:'var(--neg)', marginTop:4}}>查不到此代號,請手動填資料</div>}
 
-        {sym.length > 0 && (
-          <div style={{marginTop:10, border:'1px solid var(--line)', borderRadius:'var(--radius)', background:'var(--bg-2)'}}>
-            {suggestions.map(s => (
-              <div key={s.sym} style={{padding:'10px 12px', borderBottom:'1px solid var(--line)', cursor:'pointer'}}>
-                <div style={{display:'flex', justifyContent:'space-between'}}>
-                  <span className="mono" style={{fontSize:12}}>{s.sym}</span>
-                  <span style={{fontSize:10, color:'var(--text-3)'}}>{s.market}</span>
-                </div>
-                <div style={{fontSize:11, color:'var(--text-2)'}}>{s.name}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        <label className="field-label" style={{marginTop:14}}>名稱</label>
+        <input className="input" placeholder="元大台灣50" value={name} onChange={e=>setName(e.target.value)}/>
 
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:14}}>
           <div>
             <label className="field-label">持有股數</label>
-            <input className="input" placeholder="0"/>
+            <input className="input" type="number" placeholder="0" value={shares} onChange={e=>setShares(e.target.value)}/>
           </div>
           <div>
             <label className="field-label">平均成本</label>
-            <input className="input" placeholder="0.00"/>
+            <input className="input" type="number" step="0.01" placeholder="0.00" value={cost} onChange={e=>setCost(e.target.value)}/>
+          </div>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:14}}>
+          <div>
+            <label className="field-label">資產類別</label>
+            <select className="input" value={sector} onChange={e=>setSector(e.target.value)}>
+              <option value="">自動判斷</option>
+              {SECTOR_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="field-label">持股類型</label>
+            <select className="input" value={type} onChange={e=>setType(e.target.value)}>
+              <option value="">自動判斷</option>
+              {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
         </div>
 
         <div style={{display:'flex', gap:8, marginTop:20, justifyContent:'flex-end'}}>
           <button className="btn" onClick={onClose}>取消</button>
-          <button className="btn primary">新增</button>
+          <button className="btn primary" onClick={save} disabled={!sym || !shares}>{isEdit ? '儲存' : '新增'}</button>
         </div>
       </div>
     </div>

@@ -1,8 +1,9 @@
 // Signals / Adjustment timing page
 function Signals() {
-  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const [userHoldings] = useHoldings();
+  const tickers = RT.holdingsToTickers(userHoldings);
   const { quotes, status, updatedAt } = useLiveQuotes(tickers, { intervalMs: 60000 });
-  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);
   const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
 

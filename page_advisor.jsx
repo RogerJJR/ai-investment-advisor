@@ -3,9 +3,10 @@ function Advisor({ risk }) {
   const [selectedSlice, setSelectedSlice] = React.useState('債券');
   const [timeframe, setTimeframe] = React.useState('3M');
 
-  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const [userHoldings] = useHoldings();
+  const tickers = RT.holdingsToTickers(userHoldings);
   const { quotes, status } = useLiveQuotes(tickers, { intervalMs: 60000 });
-  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
 
   const target = RT.computeLiveAllocation(holdings, DATA.allocation);
   const selected = target.find(a => a.name === selectedSlice);
@@ -16,7 +17,7 @@ function Advisor({ risk }) {
       <div className="page-head">
         <div>
           <h1>AI 配置建議</h1>
-          <p>基於你目前的 {DATA.holdings.length} 檔持股、風險偏好「穩健型」、以及 142 筆公開資料來源,AI 生成以下長期配置建議。</p>
+          <p>基於你目前的 {holdings.length} 檔持股、風險偏好「穩健型」、以及 142 筆公開資料來源,AI 生成以下長期配置建議。</p>
         </div>
         <div className="actions">
           <button className="btn"><Icon name="refresh" size={14}/>重新推論</button>

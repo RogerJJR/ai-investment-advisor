@@ -141,6 +141,55 @@
   // ── React hook ────────────────────────────────────────────────
   const { useState, useEffect, useRef, useCallback } = React;
 
+  // ── Persistent holdings store (localStorage + pub/sub) ────────
+  const HOLDINGS_KEY = 'ai-advisor-holdings-v1';
+  let _holdings = null;
+  const _holdingsListeners = new Set();
+
+  function _load() {
+    try {
+      const raw = localStorage.getItem(HOLDINGS_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return DATA.holdings.map(h => ({ ...h }));
+  }
+
+  function getHoldings() {
+    if (_holdings === null) _holdings = _load();
+    return _holdings;
+  }
+
+  function setHoldingsStore(next) {
+    _holdings = Array.isArray(next) ? next : [];
+    try { localStorage.setItem(HOLDINGS_KEY, JSON.stringify(_holdings)); } catch {}
+    _holdingsListeners.forEach((fn) => fn(_holdings));
+  }
+
+  function resetHoldingsStore() {
+    try { localStorage.removeItem(HOLDINGS_KEY); } catch {}
+    _holdings = DATA.holdings.map(h => ({ ...h }));
+    _holdingsListeners.forEach((fn) => fn(_holdings));
+  }
+
+  function useHoldings() {
+    const [state, set] = useState(getHoldings);
+    useEffect(() => {
+      _holdingsListeners.add(set);
+      return () => { _holdingsListeners.delete(set); };
+    }, []);
+    return [state, setHoldingsStore];
+  }
+
+  // Cross-tab sync
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+      if (e.key === HOLDINGS_KEY) {
+        try { _holdings = JSON.parse(e.newValue) || []; } catch { _holdings = []; }
+        _holdingsListeners.forEach((fn) => fn(_holdings));
+      }
+    });
+  }
+
   function useLiveQuotes(symbols, { intervalMs = 60000 } = {}) {
     const [quotes, setQuotes] = useState({});
     const [status, setStatus] = useState('idle'); // idle | loading | live | error
@@ -355,4 +404,8 @@
   window.useLiveQuotes = useLiveQuotes;
   window.useLiveHistory = useLiveHistory;
   window.useLiveNews = useLiveNews;
+  window.useHoldings = useHoldings;
+  window.RT.getHoldings = getHoldings;
+  window.RT.setHoldings = setHoldingsStore;
+  window.RT.resetHoldings = resetHoldingsStore;
 })();
