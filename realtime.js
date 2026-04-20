@@ -221,7 +221,13 @@
       mountedRef.current = true;
       refresh();
       const id = setInterval(refresh, intervalMs);
-      return () => { mountedRef.current = false; clearInterval(id); };
+      const onVisible = () => { if (!document.hidden) refresh(); };
+      document.addEventListener('visibilitychange', onVisible);
+      return () => {
+        mountedRef.current = false;
+        clearInterval(id);
+        document.removeEventListener('visibilitychange', onVisible);
+      };
     }, [refresh, intervalMs]);
 
     return { quotes, status, updatedAt, error, refresh };
