@@ -80,8 +80,8 @@ function Dashboard({ risk }) {
     <>
       <div className="page-head">
         <div>
-          <h1>早安,{DATA.user.name} · 這是你的 4 月總覽</h1>
-          <p>AI 已同步最新資料,整體配置相對目標有 3 項需要調整。投資期限尚餘 15 年,距離下一次再平衡建議執行日還有 12 天。</p>
+          <h1>嗨,{DATA.user.name} · 這是你的投資組合總覽</h1>
+          <p>目前持股 {holdings.length} 檔 · 配置相對目標 {needRebalance > 0 ? `有 ${needRebalance} 項需要調整` : '皆在合宜區間'} · 風險偏好 <b>{riskLabel || '穩健型'}</b></p>
           <div style={{display:'flex', alignItems:'center', gap:8, marginTop:6, fontSize:11, color:liveColor}}>
             <span className={'dot ' + (status==='live'?'pulse':'')} style={{width:6, height:6, borderRadius:'50%', background:liveColor, display:'inline-block'}}/>
             {liveLabel}
@@ -130,9 +130,17 @@ function Dashboard({ risk }) {
 
         <div className="card">
           <div className="kpi-label">AI 整體信心</div>
-          <div className="kpi-value">78<span style={{fontSize:14, color:'var(--text-3)', marginLeft:4}}>/100</span></div>
-          <div className="kpi-delta">基於 <span style={{color:'var(--text-1)'}}>142</span> 筆資料來源</div>
-          <div style={{marginTop:14}}><ConfidenceMeter value={78}/></div>
+          {(() => {
+            const aligned = liveAllocation.filter(a => Math.abs(a.current - a.target) < 3).length || 1;
+            const conf = Math.max(30, Math.min(95, Math.round(50 + aligned * 8 - absDeviation * 1.2)));
+            return (
+              <>
+                <div className="kpi-value">{conf}<span style={{fontSize:14, color:'var(--text-3)', marginLeft:4}}>/100</span></div>
+                <div className="kpi-delta">基於 <span style={{color:'var(--text-1)'}}>{liveCount}</span> 檔即時行情 + 模型評估</div>
+                <div style={{marginTop:14}}><ConfidenceMeter value={conf}/></div>
+              </>
+            );
+          })()}
         </div>
       </div>
 
