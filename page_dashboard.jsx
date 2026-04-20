@@ -475,6 +475,54 @@ function Dashboard({ risk }) {
         );
       })()}
 
+      {/* Period performance summary */}
+      {(() => {
+        if (!spark || spark.length < 2) return null;
+        const last = spark[spark.length - 1];
+        const pick = (weeksAgo) => {
+          const idx = spark.length - 1 - weeksAgo;
+          return idx >= 0 ? spark[idx] : null;
+        };
+        const windows = [
+          { label: '近 1 週',    base: pick(1) },
+          { label: '近 1 個月',  base: pick(4) },
+          { label: '近 3 個月',  base: pick(13) },
+          { label: '近 6 個月',  base: pick(Math.min(26, spark.length - 1)) },
+        ].filter(w => w.base != null).map(w => ({
+          ...w,
+          pct: ((last - w.base) / w.base) * 100,
+        }));
+        if (windows.length === 0) return null;
+        const best  = windows.reduce((m, w) => (w.pct > m.pct ? w : m), windows[0]);
+        const worst = windows.reduce((m, w) => (w.pct < m.pct ? w : m), windows[0]);
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">多期間績效摘要</div>
+                <div className="card-sub">以即時權重推估 · 最佳 {best.label} {fmt.pct(best.pct)} · 最弱 {worst.label} {fmt.pct(worst.pct)}</div>
+              </div>
+              <span className="chip">{windows.length} 個期間</span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:`repeat(${windows.length}, 1fr)`, gap:14}}>
+              {windows.map(w => {
+                const color = w.pct >= 0 ? 'var(--pos)' : 'var(--neg)';
+                const annualized = w.label === '近 1 年' ? w.pct : null;
+                return (
+                  <div key={w.label} style={{padding:12, borderRadius:'var(--radius)', background:'var(--bg-2)', borderLeft:`2px solid ${color}`}}>
+                    <div className="mono-label" style={{marginBottom:6}}>{w.label}</div>
+                    <div className="mono" style={{fontSize:18, color, fontWeight:600}}>{fmt.pct(w.pct)}</div>
+                    <div style={{fontSize:10, color:'var(--text-3)', marginTop:4}}>
+                      {w === best ? '本期最佳' : w === worst && best !== worst ? '本期最弱' : '組合加權'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="disclaimer" style={{marginTop:24}}>
         本網站所有建議皆來自公開市場資料與 AI 模型推論,不構成投資建議;投資有風險,過去績效不代表未來結果。
       </div>
