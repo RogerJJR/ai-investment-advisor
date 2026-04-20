@@ -1,0 +1,98 @@
+Reviewer #1 Report (Round 5) - Methodology / Bayesian Filtering / Portfolio Optimization
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+Summary
+-------
+The authors have preserved every element I signed off on in round 4 (Bayesian filter,
+soft-assignment Welford, Jensen caveat, DP-gap bound, paired-MC SEs, CRRA-CE annualisation
+disclosure, moment-mix ablation, Ang-Bekaert/Guidolin-Timmermann/Campbell-Viceira
+citations) and added a new "Narrative Regimes (iterated)" variant driven by a 30-step
+greedy hyper-parameter sweep (notebooks/iterate_roi.py; enhancements.py; allocator_v2.py).
+The final composite enables Ledoit-Wolf-style covariance shrinkage (alpha=0.2),
+regime-specific risk aversion, 8% annualised volatility targeting, mu-shrinkage=0.4,
+weight inertia=0.85, and a 10% Treasury floor. Reported gains are modest (+27 bps CRRA-CE,
++1.8 pp Sharpe, -4 pp MDD, turnover halved). The abstract (lines 53-56) and new
+subsection (lines 395-416) are appropriately restrained and explicitly credit vol
+targeting as the dominant contributor.
+
+Status per previous-round comment
+---------------------------------
+- Jensen caveat / DP-gap bound (round 3):                           ADDRESSED (unchanged).
+- Moment-mix ablation row:                                          ADDRESSED (now row 8 of Table 1).
+- CRRA-CE annualisation bound:                                      ADDRESSED (unchanged).
+- Welford gloss / ESS / covariance floor:                           ADDRESSED (unchanged).
+- Paired-MC SEs across 30 common seeds:                             ADDRESSED.
+- No-look-ahead in backtest (src/backtest.py:35 shift(1)):          ADDRESSED.
+- Honest framing vs risk parity:                                    ADDRESSED (line 390-393).
+
+New major comments
+------------------
+M1. Selection-bias disclosure for the greedy sweep is adequate but should be tightened.
+    iterate_roi.py:60 uses seed_base=2000 (12 paths) for selection while the headline
+    Table 1 uses seed_base=100 (30 paths) - these are disjoint, which is the right
+    design and I commend the authors. Please state this explicitly in Section 4.5
+    around line 400 ("the greedy sweep is evaluated on a disjoint 12-seed validation
+    fold; Table 1 figures are computed on the 30-seed test fold") so the reader is not
+    left to infer it from the source. The +27 bps CRRA-CE improvement (SE ~24 bps in
+    iteration_log.csv row 17) is within one standard error even on the validation fold;
+    this should be acknowledged.
+
+M2. Vol-targeting implementation (allocator_v2.py:144-154). The residual exposure is
+    dumped into column 3 ("Treasuries"), not into a risk-free asset. Treasuries are
+    themselves volatile (regime-dependent duration risk), so the realised ex-post vol
+    will not equal the 8% target - it will overshoot in bond-stress regimes. This is
+    the single biggest channel for the reported MDD improvement, so it is worth a one-
+    sentence caveat in the paper (around line 410): "vol targeting is implemented by
+    reallocating surplus risk budget to the Treasury leg, which is itself regime-
+    sensitive; the effective ex-post annualised vol is therefore only approximately
+    on-target." This does not undermine the result - the Sharpe improvement survives -
+    but it is a non-trivial abstraction from the classical Campbell-Viceira risk-free
+    asset.
+
+M3. Ledoit-Wolf shrinkage is not Ledoit-Wolf. enhancements.py:27 uses a fixed
+    alpha=0.2 toward a diagonal target. The canonical LW estimator computes the
+    optimal shrinkage intensity in closed form from the data (Ledoit and Wolf, 2004,
+    JMVA 88). Rename to "diagonal shrinkage" or cite this as a simplified proxy and
+    note that the optimal intensity would likely differ path-by-path. This is cosmetic
+    but matters for methodological accuracy, especially at a methods-sensitive venue.
+
+M4. Regime-specific gamma (enhancements.py:150) is hard-coded as {expansion=4,
+    contraction=6, stress=10}. The choice is defensible (more risk-averse in stress,
+    Campbell-Viceira 2002 Ch. 5) but the values are ad hoc and the regime labels must
+    be aligned to the filter's initialisation ordering - a silent label permutation
+    would invert the effect. A footnote pointing the reader to the regime ordering
+    disclosed in simulator.py, plus a one-line sensitivity (e.g., +/-50% on each gamma)
+    in the appendix, would close the loop.
+
+Minor comments
+--------------
+m1. Abstract line 54-55: "lifts CRRA-CE to 3.0%" rounds 3.04% down; keep 3.0% but
+    change "lifts ... to 3.0%" to "lifts ... to approximately 3.0% (3.04%, SE 24 bps)".
+m2. Line 412 "rejected by the greedy criterion---a finding consistent with the
+    literature that over-engineered allocators tend to over-fit" - please cite
+    DeMiguel, Garlappi, Uppal (2009, RFS) here; it is the standard reference.
+m3. The Jensen gap and DP-gap bounds in Appendix B should be re-checked for the
+    iterated variant, since vol targeting introduces a second layer of non-linearity
+    in the wealth dynamics; a sentence confirming the bound still applies is sufficient.
+m4. iteration_log.csv: the "accepted" column shows iterations 10 and 14 producing
+    byte-identical stats (regime-gamma and vol-target-10% both cloned from iteration 9);
+    please verify this is a genuine no-op given the chained config and not a logging bug.
+
+Recommendation
+--------------
+ACCEPT (with minor revisions M1-M4 and m1-m4 handled at copy-edit; no new experiments
+required).
+
+Justification
+-------------
+The new iterated variant is methodologically defensible. The backtest is look-ahead
+free (backtest.py:35), selection and evaluation seeds are disjoint, the reported gains
+are honestly qualified as small and driven by a single lever (vol targeting), and the
+composite is consistent with the classical literature (Campbell-Viceira 2002 for
+regime-gamma; Ledoit-Wolf 2004 for shrinkage in spirit; DeMiguel et al. 2009 for the
+over-engineering caution the authors themselves invoke). The Bayesian filter and the
+regime-policy-mix allocator are unchanged from round 3, so my prior ACCEPT stands.
+The four minor methodological issues above (vol-target residual into Treasuries, LW
+mislabel, hard-coded regime gammas, validation-fold disclosure) are all fixable at
+copy-edit. I do not require further experiments.

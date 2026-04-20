@@ -1,0 +1,109 @@
+Reviewer #3 (AI/ML specialist, LLM applications in finance) -- ROUND 5
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Journal: Decision Support Systems
+Date: 2026-04-20
+
+================================================================
+SUMMARY
+================================================================
+Round 5 adds a new "iterated allocator variant" subsection (Section 4.2) and
+the supporting sweep artefacts (iteration_log.csv, best_config.json). I held
+the manuscript at ACCEPT in round 4; my charge in this round is narrow --
+confirm that the AI/ML claims are not inflated by the new allocator
+engineering, and that the SNR threshold, regime-accuracy numbers, and LLM
+abstraction remain intact.
+
+================================================================
+STATUS PER PREVIOUS-ROUND COMMENTS
+================================================================
+R1/R2/R3 concerns (look-ahead framing, LLM-BL / HARLF / Tang-Zhang
+differentiation, CRRA-CE annualisation caveat, signal abstraction, mis-
+specified-likelihood robustness): UNCHANGED. Abstract l.46-47, Conclusion
+l.669-671, Section 2 l.172-184, and Appendix A are preserved verbatim from
+round 4. No reactivation.
+
+================================================================
+NEW MAJOR COMMENTS (iterated-variant content)
+================================================================
+1. ATTRIBUTION OF ITERATED GAINS -- HANDLED CORRECTLY.
+   Section 4.2 (l.395-416) is admirably disciplined. The +27 bps CRRA-CE lift
+   and the Sharpe 0.30 -> 0.32 improvement are explicitly attributed to
+   Ledoit-Wolf shrinkage plus 8% annualised vol targeting, with the authors
+   stating "The gains are concentrated in the volatility-targeting block: vol
+   targeting alone (iteration #15) delivers almost all of the CRRA-CE
+   improvement." This matches iteration_log.csv: baseline CRRA-CE 0.02902,
+   LW-shrinkage row (iter 9) 0.02999, 8% vol-target row (iter 15) 0.03093;
+   every subsequent composite change is marked accepted=False. The authors
+   correctly re-frame the variant as "a disciplined two-lever refinement
+   (shrinkage + vol targeting) rather than an ensemble of enhancements."
+   Crucially, neither the abstract (l.53-56) nor Section 4.2 attributes any
+   portion of the iterated gain to the LLM narrative signal. The LLM
+   contribution (the +11 pp regime-classification accuracy, Table 3) is
+   reported from the baseline configuration only, and is NOT restated or
+   augmented in the iterated subsection. This is the correct accounting.
+
+2. TABLE CONSISTENCY WITH REGENERATED CSVs -- VERIFIED.
+   - Table 2 (Narrative Regimes row): Sharpe 0.302, MaxDD -0.227, CRRA-CE
+     0.0277, turnover 0.075 match table_main.csv row 2 exactly.
+   - Table 2 (Iterated row): Sharpe 0.320, Vol 0.0676, MaxDD -0.187,
+     CRRA-CE 0.0304, turnover 0.037 match NarrativeRegimesV2 row 3.
+   - Table 3 (accuracy): 0.608 / 0.498 match table_accuracy.csv.
+   - Table 4 (SNR): accuracy monotone 0.41 -> 0.65, crossover near beta=1,
+     consistent with table_snr.csv aggregates.
+   No internal inconsistency introduced by the new artefacts.
+
+3. SIGNAL ABSTRACTION UNCHANGED.
+   simulate_narrative_signal in simulator.py still emits a one-hot mean plus
+   iid Gaussian noise with std = 1/snr; regime_filter.py still applies
+   -0.5 * beta * ||s - e_k||^2 as the log-likelihood. The abstraction
+   defensibility argument from rounds 2-3 carries over without modification,
+   and Section 6.2 (l.614-620) preserves the limitation disclosure verbatim.
+
+4. DIFFERENTIATION FROM PRIOR LLM-PORTFOLIO WORK -- UNAFFECTED.
+   The iterated variant does not change the Tang-Zhang taxonomy placement,
+   and nothing in Section 4.2 encroaches on LLM-BL (Chen et al. 2025) or
+   HARLF (Kim et al. 2025) territory -- vol targeting and LW shrinkage are
+   classical allocator techniques unrelated to LLM-side methodology. The
+   novelty claim remains the Bayesian filter + regime-policy mix, not the
+   vol-targeted wrapper.
+
+5. SELF-FULFILLING-LIKELIHOOD CONCERN -- STILL BACKSTOPPED.
+   The iterated variant does not touch the filter, only the allocator, so
+   the mis-specified-likelihood robustness result in Appendix A (table_snr_
+   misspec with beta* rising from ~1 to ~1.2) remains the relevant evidence.
+
+================================================================
+MINOR COMMENTS
+================================================================
+M1. AI-usage declaration (Section 5.3, l.639): "Claude Opus 4.6 by Anthropic,
+    accessed via the Claude desktop application in April 2026" is Elsevier-
+    compliant (specific model + version + access window, CRediT-aligned
+    roles, author verification statement, LLM-not-author disclaimer). The
+    mirrored ai_usage_declaration.md is consistent. Acceptable as-is.
+M2. Consider adding one sentence to Section 4.2 explicitly noting that the
+    +11 pp accuracy attribution (Table 3) is independent of the iterated
+    allocator -- a defensive framing that pre-empts any reader tempted to
+    bundle the two contributions. Not blocking.
+M3. iteration_log.csv uses "01 narrative_weight=2.0" (iter 1, accepted) as
+    the first accepted change. The +27 bps headline in the paper is relative
+    to the baseline (iter 0), so this is fine, but a cautious reader might
+    note that narrative_weight=2.0 is part of the iterated stack. The paper
+    does not claim this as an LLM improvement -- it is treated as a hyper-
+    parameter under the same parametric filter -- which I accept.
+
+================================================================
+RECOMMENDATION
+================================================================
+ACCEPT
+
+================================================================
+JUSTIFICATION
+================================================================
+The round-5 additions are allocator engineering, clearly labelled as such,
+and do not inflate the LLM-side claims. Attribution language in Section 4.2
+is conservative and matches the iteration log to the basis point. The LLM
+contribution (+11 pp regime accuracy, SNR threshold beta* ~ 1) is reported
+at the baseline configuration only and is not re-used to credit the
+iterated variant. All AI/ML concerns from rounds 1-4 remain resolved, and
+no new AI/ML concerns are introduced. Elsevier AI-usage compliance is
+intact. I confirm my round-4 ACCEPT.
