@@ -1,0 +1,93 @@
+================================================================================
+Reviewer #4 Report - Round 2 (Senior Editor / Writing & Presentation)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for
+            Long-Horizon Investors"
+Target venue: Decision Support Systems (Elsevier)
+Date of review: 2026-04-20
+================================================================================
+
+STATUS PER ROUND-1 CONCERN
+--------------------------
+MAJOR 1 (DSS framing in abstract). PARTIALLY RESOLVED. The abstract now names
+the decision problem ("standard mean-variance and risk-parity frameworks handle
+poorly") and uses the phrase "decision support framework," and the SNR adoption
+threshold is surfaced. However, the opening sentence still does not explicitly
+name the decision-maker (CIO / investment committee) or phrase the research
+question as "adopt or not adopt LLM signals in SAA, and under what conditions?"
+A two-sentence tightening remains desirable but is not blocking.
+
+MAJOR 2 (AI usage declaration integration). RESOLVED. Section 6 (sec:ai-usage,
+actually placed as 5.3 before Conclusion) now carries a CRediT-aligned
+itemisation naming the specific model (Claude Opus 4.6), platform, month, and
+the author's verification/editing role. This satisfies Elsevier's policy
+requirement.
+
+MAJOR 3 (contribution-list differentiation). RESOLVED. The four contributions
+are now labelled (Framework / Evaluation methodology / Adoption threshold /
+Artefact release) and differentiate on the combination of Bayesian regime
+filter + regime-policy-mix + look-ahead-free Monte-Carlo. Contribution (4) has
+been rewritten to describe the artefact rather than restate numbers.
+
+MAJOR 4 (thin Discussion / short Conclusion). NOT ADDRESSED. The "Implications
+for practice" subsection remains a single paragraph of three numbered
+observations; it still does not tell a CIO (a) how to measure their LLM's SNR
+in practice, (b) how to update governance, or (c) how the framework interacts
+with risk budgets and mandates. The Conclusion is still one paragraph.
+
+MAJOR 5 (table/figure self-containment). NOT ADDRESSED. Table 1 caption still
+lacks unit definitions for Turnover (monthly? annualised?) and CRRA CE
+(annualised decimal). Table 3 (tab:snr) still presents columns in the awkward
+"Accuracy gain, Narrative CRRA-CE, Regime CRRA-CE, Accuracy with narrative"
+order that prevents a reader from verifying the gain at a glance. Figure 1
+caption does not name RegimeOnly as the baseline; Figure 2 does not define the
+right-axis step function; Figure 3 caption is minimal.
+
+MAJOR 6 (bibliography gaps). RESOLVED. FeuerriegelProllochs2020DSS,
+ChenPelgerZhu2024, KimMuhnNikolaev2024, and Fatouros2024EvaluatingFinLLMs now
+appear in references.bib and are cited in the DSS paragraph (lines 179-190).
+Bollerslev key is corrected to BollerslevXuZhou2015.
+
+MINOR M1 (passive voice clustering). Unchanged; acceptable.
+MINOR M2 (orphaned notation). PARTIALLY RESOLVED. beta^{\ast} render fix
+confirmed (line 130, line 541). Welford still not glossed; Markov-modulated
+CRRA policy still undefined at first use; Delta^{N-1} absent (acceptable since
+simplex notation has been replaced by set-builder C). Alpha=0.2 now stated.
+MINOR M3 (units). Unit footnote on Table 1 still missing; the abstract and
+table are now internally consistent in magnitude but the annualised-decimal
+convention should be stated once.
+MINOR M4 (<your-username> placeholder). RESOLVED ("anonymised for review").
+MINOR M5 (redundancy with external .md). RESOLVED by integration.
+MINOR M6 (typos / CRRA CE reconciliation). RESOLVED. Abstract and Table 1 now
+agree that risk parity attains 2.6% vs. 2.4%, framed honestly.
+
+REMAINING PRESENTATION ISSUES
+-----------------------------
+- Table 1 caption contains a minor self-contradiction: it says "Best value per
+  column (among competing strategies) in bold; Narrative Regimes is second-best
+  on Sharpe and CRRA-CE but strictly better than all non-regime baselines"
+  which is a result statement inside a caption. Trim to the bolding rule.
+- "regimes of parameter space" (line 115) still appears; should be "regions."
+- Section numbering: sec:ai-usage is a subsection of Discussion (5.3), not an
+  independent Section 6 as the author's response letter claims. Cosmetic but
+  should be reconciled with the response letter.
+- Campbell2002, MichaudMichaud2008, Chen2024LLMBL still use @article for books
+  / conference proceedings; elsarticle-harv may emit warnings.
+- LopezLira2023 bib entry still carries year=2024 while cited as 2023 in-text.
+
+RECOMMENDATION
+--------------
+MINOR REVISION.
+
+JUSTIFICATION
+-------------
+The two compliance-relevant items from round 1 (AI-usage integration and the
+CRRA-CE abstract/Table-1 reconciliation) are cleanly resolved, as is the
+bibliography gap. The contribution list now differentiates from Chen (2024),
+Kim (2025), and Wang (2025) along three named axes. What remains is a second
+tightening pass on (i) Discussion/Conclusion expansion for the DSS managerial
+audience, (ii) table and figure caption self-containment, and (iii) a short
+list of cosmetic bib-entry and wording fixes. None of these blocks acceptance;
+all are fixable in one revision cycle without touching the methods or
+experiments. Recommend conditional acceptance subject to the author
+completing the Major-4 and Major-5 items from this round.
+================================================================================

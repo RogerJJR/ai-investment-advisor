@@ -1,0 +1,168 @@
+================================================================================
+Reviewer #4 Report - Senior Editor / Writing & Presentation Specialist
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for
+            Long-Horizon Investors"
+Target venue: Decision Support Systems (Elsevier)
+Date of review: 2026-04-20
+================================================================================
+
+SUMMARY
+-------
+The manuscript proposes "Narrative Regimes," a framework that couples an online
+Bayesian regime filter with an LLM-distilled narrative likelihood and a CRRA
+regime-policy-mix allocator, evaluated on a simulation-based testbed that
+eliminates look-ahead bias by construction. The paper is readable, well
+structured, and deliberately written for the DSS audience. The abstract, the
+contribution list, and the discussion all connect the statistical machinery to
+an explicit adoption decision (SNR threshold). LaTeX appears to compile cleanly
+under elsarticle with standard packages. From a presentation standpoint the
+paper is closer to publishable than not; the remaining issues are largely about
+sharpening the DSS framing, integrating the AI-usage declaration properly, and
+tightening a handful of writing and figure-caption details.
+
+MAJOR COMMENTS
+--------------
+1. Decision-support angle in the abstract is implicit rather than explicit.
+   The abstract is informative and numerically rich, but the phrase "decision
+   support" appears once and the reader has to infer what managerial decision
+   the paper supports. DSS readers expect an opening sentence that names the
+   decision (adopt or not adopt LLM signals in SAA; under what conditions) and
+   the decision-maker (CIO, investment committee). Recommend rewriting the
+   first two sentences to lead with the managerial question and then introduce
+   the methodological response. The SNR threshold (beta* ~ 1) should be
+   surfaced in the abstract as the core decision rule.
+
+2. AI usage declaration should be integrated into the main text, not kept as
+   a separate .md file. Elsevier's policy (and common practice at DSS)
+   requires the disclosure to appear in the published manuscript, typically
+   immediately before the references or as an unnumbered section after
+   Conclusion. The current manuscript has a short subsection 5.3 that partly
+   covers this, but the richer CRediT-aligned table in ai_usage_declaration.md
+   is strictly more informative and should be promoted into the paper (or
+   into an appendix titled "Declaration of generative AI in scientific
+   writing"). At present a reader of the PDF does not see the table at all.
+   This is a compliance issue, not just a stylistic one.
+
+3. Contribution list overlaps with prior work on one axis and needs
+   sharpening. Contribution (1) claims "the first" long-horizon SAA framework
+   integrating LLM signals into a Bayesian regime filter. Given Chen et al.
+   (2024) (Black-Litterman), Kim et al. (2025, HARLF), and Wang et al. (2025)
+   already embed LLM signals in allocators, the novelty is really the
+   *combination* of (i) Bayesian regime filter, (ii) CRRA regime-policy-mix,
+   and (iii) simulation-based look-ahead-free evaluation. Recommend rewording
+   to differentiate on these three axes explicitly rather than relying on "to
+   the best of our knowledge." Also, contribution (4) restates numeric results
+   that belong in the abstract; contributions should describe *what is new*,
+   not *what the numbers are*.
+
+4. Section order is appropriate, but the "Discussion" section is thin for a
+   DSS submission and the "Implications for practice" subsection should be
+   expanded and elevated. DSS expects a managerial-implications discussion
+   that tells a CIO: (a) how to measure their LLM's SNR in practice, (b) how
+   to update governance (audit trail, ablation testing), and (c) how the
+   framework interacts with existing risk budgets and mandates. The current
+   half-page subsection is a good outline but under-developed for the
+   audience. Also, Conclusion is very short (one paragraph) and should be
+   expanded to restate the decision rule, the scope of validity, and the
+   next-step recommendation.
+
+5. Tables and figures are not fully self-contained. Three concrete issues:
+   (a) Table 1 caption does not define "Turnover" (monthly average? annualised?
+       gross one-way?) or the units of CRRA CE (annualised decimal).
+   (b) Table 3 has an awkward column order: "Accuracy gain," "Narrative
+       CRRA-CE," "Regime CRRA-CE," and "Accuracy with narrative" are placed
+       such that a reader cannot immediately verify the gain. Reorder to
+       Regime CRRA-CE, Narrative CRRA-CE, delta, accuracy, delta.
+   (c) Figures 1-3 captions should be readable without the text: Fig. 1 should
+       name the baseline curve (RegimeOnly) explicitly in the caption; Fig. 2
+       should explain what "true latent regime overlaid on the right axis"
+       means (i.e., step function 1/2/3); Fig. 3 should state that bands are
+       omitted because the between-strategy differences are visually clearer
+       without them. Also verify the figure files (figures/fig_snr_curve.pdf
+       etc.) are actually present in the submission bundle; the manuscript
+       will fail to typeset otherwise.
+
+6. Bibliography is adequate but missing several important recent references.
+   For a 2026 submission to DSS on LLMs-in-finance, the reader will expect
+   to see: (i) Yang et al. (FinGPT / FinBERT follow-ups), (ii) Fatouros et al.
+   on LLM sentiment for trading, (iii) Chen/Pelger/Zhu on deep-learning asset
+   pricing (widely cited baseline for ML in finance), (iv) the Kim, Muhn,
+   Nikolaev 2024 on LLM-based financial statement analysis, and (v) a DSS-
+   native citation (Feuerriegel et al., or prior DSS papers on NLP for
+   financial decision support) to anchor the venue fit. Also: LopezLira2023
+   is labelled as 2023 in-text but 2024 in the bib (cosmetic mismatch), and
+   "Bollerslev2022NewsAttention" key refers to a 2015 JFQA paper - the key
+   and/or the title should be corrected. Several entries use @article for
+   books/proceedings (Campbell2002, MichaudMichaud2008, Chen2024LLMBL);
+   change to @book / @inproceedings respectively to avoid elsarticle-harv
+   formatting oddities.
+
+MINOR COMMENTS
+--------------
+M1. Writing - passive voice and hedging. Several sentences in Sections 1-2
+    use passive "is applied," "are computed," "has long embraced." These are
+    acceptable but cluster in the introduction; consider activating at least
+    one per paragraph ("We apply," "We compute") to keep energy.
+
+M2. Orphaned notation and jargon.
+    - "Welford recursions" (Sec. 3.2, Algorithm) is never defined; add a
+      half-sentence gloss ("numerically stable online moment updates").
+    - "Markov-modulated CRRA policy" appears twice without a brief definition.
+    - Delta^{N-1} (the simplex) is used without introduction.
+    - "shrunk toward their grand mean with weight alpha" - alpha is never
+      given a value; specify or point to Appendix.
+    - In Eq. (filter), the prior p(z_t=k | F_{t-1}) is denoted; later in
+      Algorithm 1 it is written p_{t|t-1}. Unify notation.
+    - beta^{\*} with escaped asterisk (line 391) will render literally -
+      drop the backslash; use beta^{\star} or beta^* instead.
+
+M3. Units and magnitudes. The abstract reports "2.4%", "1.1%", "0.7%";
+    Table 1 reports 0.0236, 0.0110, 0.0066. These are consistent but a casual
+    reader will not realise. Add a footnote to Table 1 stating that CRRA CE
+    is a decimal annualised rate.
+
+M4. Data availability placeholder. Line 549 still contains the template
+    string "https://github.com/<your-username>/narrative-regimes" - must be
+    resolved before camera-ready; flag to the author now. Same placeholder
+    appears in ai_usage_declaration.md.
+
+M5. Redundancy between Section 5.3 ("AI usage declaration") and the external
+    .md file. Pick one canonical location; if the external file stays, the
+    paper should cite it explicitly and summarise only the headline.
+
+M6. Minor typos / style:
+    - "regimes of parameter space" (line 111) - awkward; "regions of
+      parameter space" is what is meant.
+    - "The narrative filter strictly dominates" (line 388) - "strictly
+      dominates" is a strong claim; the table shows it by mean but standard
+      errors are not reported. Soften or add SEs.
+    - "Two developments since 2022" (line 83) - date it more precisely
+      ("Since the release of ChatGPT in late 2022...") for DSS readers who
+      may not be ML-fluent.
+    - "risk parity's case the difference is marginal" - be explicit that
+      risk parity actually achieves a slightly higher CRRA CE than Narrative
+      Regimes in Table 1 (0.0256 vs 0.0236); the abstract claim that
+      Narrative Regimes is best on CRRA CE is contradicted by Table 1 and
+      must be reconciled. This is borderline major - flagging here but the
+      author should check carefully.
+
+RECOMMENDATION
+--------------
+MINOR REVISION (bordering on MAJOR revision contingent on resolving the
+CRRA CE inconsistency flagged in M6 and the AI-declaration integration
+in Major Comment 2).
+
+JUSTIFICATION
+-------------
+The manuscript is well-written, structurally sound, and makes a genuinely
+decision-relevant contribution (an explicit SNR-based adoption rule) that
+maps cleanly to the DSS audience. The methods are transparent, the ablation
+is honest, and the replication posture is exemplary. The writing concerns
+listed above are fixable in one revision cycle. The two material issues -
+integrating the AI-usage declaration into the PDF (compliance) and
+reconciling the CRRA CE claim between abstract and Table 1 (accuracy) -
+are not large-scope changes, but they need to happen before publication.
+If both are resolved cleanly, and the contribution list is sharpened to
+differentiate from Chen (2024), Kim (2025), and Wang (2025), the paper
+is a good fit for Decision Support Systems.
+================================================================================

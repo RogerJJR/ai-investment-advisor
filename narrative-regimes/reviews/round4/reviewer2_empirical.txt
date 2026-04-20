@@ -1,0 +1,32 @@
+Reviewer #2 (Empirical Finance / Financial Econometrics) -- ROUND 4 (FINAL)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation
+for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+==================================================================
+ROUND-4 ASSESSMENT
+==================================================================
+
+I have re-read main.tex against my round-3 ACCEPT. The author
+confirms round-4 changes are cosmetic (copyedit only), and my own
+diff-level inspection of the manuscript is consistent with that: the
+abstract's Sharpe/CRRA-CE numbers still match table_main.csv, the
+paired Monte-Carlo standard errors in Table 1 are intact, the
+moment-mix ablation row is present with the same values I verified
+in round 3, the seed-pre-registration paragraph remains at the end
+of Section 4.3, the rolling-MV hyperparameters (36-month window,
+gamma=5, bar_w=0.60, no shrinkage) are still disclosed in Section
+4.2, and the mis-specified-likelihood robustness paragraph in
+Appendix A is unchanged. The Section 5.4 single-seed TC framing is
+preserved with the multi-path table appropriately deferred to the
+replication bundle -- the honest scope reduction I accepted in round
+3. No empirical number has moved. All five round-2 concerns remain
+addressed. My round-3 recommendation stands without qualification.
+
+==================================================================
+RECOMMENDATION
+==================================================================
+ACCEPT with remark: the multi-path transaction-cost sweep should be
+regenerated and shipped in results/tables/table_tc.csv before the
+camera-ready version, replacing the single-seed prose of Section 5.4
+with the Monte-Carlo expectation.

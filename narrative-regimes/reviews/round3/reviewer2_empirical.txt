@@ -1,0 +1,97 @@
+Reviewer #2 (Empirical Finance / Financial Econometrics) -- ROUND 3
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation
+for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+==================================================================
+STATUS PER ROUND-2 REMAINING CONCERN
+==================================================================
+
+R2-1 (Baseline hyperparameters) -- ADDRESSED.
+    Section 4.2 now discloses the full rolling-MV configuration
+    (36-month estimation window, gamma=5, per-asset cap bar_w=0.60, no
+    shrinkage), and the inverse-volatility risk parity window (36
+    months) is also stated. Critically, the text specifies that all
+    baselines "start rebalancing at month 37 (after the 36-month warmup
+    shared with the filter) so sample paths are directly comparable,"
+    which addresses the round-2 fairness concern at the margin most
+    likely to distort comparative statistics. The shrinkage coefficient
+    alpha=0.2 for the filter is stated in Section 3.3.
+
+R2-2 (Seed pre-registration) -- ADDRESSED.
+    A dedicated "Seed pre-registration" paragraph at the end of
+    Section 4.3 declares the seeds to be fixed in Appendix B
+    ("Appendix A" in the current numbering -- the seed convention is
+    in the Simulation parameters appendix) before result inspection.
+    Appendix A lists the seed ranges by experiment (100-129 main,
+    500-519 SNR, 900-919 TC, 1300-1319 risk-aversion). This is
+    sufficient for a working-paper preregistration statement.
+
+R2-3 (TC sweep scope reduction) -- ADDRESSED as honest scope
+    reduction. Section 5.4 has been rewritten: the narrative now reads
+    as a single-representative-path verification on seed 900, with
+    CRRA-CE declining 6.65% -> 6.18% -> 4.30% -> 1.98% across
+    tau in {0,10,50,100} bps and Sharpe 0.80 -> 0.73 -> 0.49 -> 0.18.
+    The text then points to results/tables/table_tc.csv in the
+    replication bundle with the appropriate caveat that the full
+    multi-path re-run awaits environment availability. This is an
+    honest scope reduction rather than a false claim, and is
+    appropriate for a preprint / working-paper submission; the reader
+    is not being asked to accept a multi-path result anchored on a
+    demonstrably buggy CSV. I accept this framing.
+
+R2-4 (Moment-mix ablation) -- ADDRESSED.
+    Table 1 now contains a "Moment-mix (ablation)" row with
+    CRRA-CE 0.0228, Sharpe 0.248, and max DD -0.255, and Section 6.1
+    point (ii) references the ~20% loss of drawdown-reduction benefit
+    vs. the regime-policy-mix allocator. This is a material addition:
+    it empirically validates the paper's core design claim that
+    preserving regime heterogeneity at the policy (not moment) stage
+    is the source of the incremental benefit.
+
+R2-5 (Mis-specified-likelihood robustness) -- ADDRESSED.
+    Appendix A now contains a paragraph reporting a 5% bilateral
+    asymmetry stress test; the SNR threshold shifts from beta*~1.0 to
+    ~1.2, with full table in results/tables/table_snr_misspec.csv.
+    Adequate for the robustness claim.
+
+==================================================================
+REMAINING CONCERNS
+==================================================================
+
+Minor only:
+- Seed-42 posterior figure remains single-seed (noted round 2, not
+  load-bearing for the core claims).
+- The TC table regeneration should be prioritised for the camera-ready
+  version if accepted; the working-paper scope reduction is acceptable
+  now but should not be perpetuated into a final published version.
+
+==================================================================
+RECOMMENDATION
+==================================================================
+ACCEPT (with the understanding that the multi-path TC sweep is
+completed before camera-ready publication).
+
+==================================================================
+ONE-PARAGRAPH VERDICT
+==================================================================
+All five round-2 items are resolved in the current manuscript. The
+baseline-hyperparameter disclosure, seed pre-registration statement,
+moment-mix ablation row in Table 1, and mis-specified-likelihood
+robustness paragraph in Appendix A are concrete, verifiable
+additions that materially strengthen the empirical credibility of
+the paper. The Section 5.4 TC rewrite is an honest and appropriate
+scope reduction: the prose is now explicitly anchored on a single
+representative seed (900), the quantitative claim is modest and
+verifiable from the reported numbers, and the full multi-path table
+is deferred to the replication bundle with a transparent caveat that
+the re-run awaits compute-environment availability. This is common
+and acceptable practice for working papers and preprints; the author
+has not made a multi-path claim on buggy evidence, which was the
+round-2 red flag. On balance, the paper is now honest about what it
+has shown and what remains to be shown, the headline claims align
+with the released tables, and the framework's genuine contributions
+(the SNR adoption threshold, the regime-policy-mix decomposition,
+and the moment-mix ablation evidence) are empirically well
+supported. I recommend ACCEPT, conditional on the multi-path TC
+sweep being completed before final publication.

@@ -1,0 +1,30 @@
+Reviewer #1 Report (Round 3) - Methodology / Bayesian Filtering / Portfolio Optimization
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+I have re-read the revised manuscript against my round-2 list. The author has addressed every remaining item I flagged.
+
+STATUS PER OUTSTANDING ROUND-2 COMMENT
+
+1. EMA transition-matrix update vs. Dirichlet soft-count.
+   ADDRESSED. New Appendix A (app:filter-detail) now states the EMA update rule explicitly (lambda_P = 0.05), motivates it as robust to individual-regime misidentification, and reports a 20-path sub-sample comparison against a full Dirichlet counter showing CRRA-CE agreement within ~3 bps/yr. This resolves the concern.
+
+2. Moment-mix row in Table 1.
+   ADDRESSED. Table 1 now contains a "Moment-mix (ablation)" row (Sharpe 0.248, CRRA-CE 0.0228, MaxDD -0.255), and the Discussion quantifies the ~20% drawdown-reduction loss against the regime-policy-mix allocator. The previously unsupported "discards a meaningful portion of the hedging signal" claim is now table-backed.
+
+3. CRRA-CE annualisation approximation.
+   ADDRESSED. Section 4.3 now discloses that the (1+CE_m)^12 conversion is first-order and exact only under log utility, quantifies the bias as at most ~10 bps/yr, and states that rankings are unchanged under an exact block-bootstrap annualisation (with a pointer to notebooks/ce_annualisation_check.py). Adequate.
+
+4. Mis-specified-likelihood experiment documentation.
+   ADDRESSED. Appendix A now includes a Mis-specified-likelihood paragraph with the experimental design (random 5% bias delta_k per seed), the quantitative finding (SNR threshold rises from ~1 to ~1.2), and a pointer to the results CSV. Moving it from the bundle into the appendix is exactly what I asked for.
+
+5. Welford ESS safeguard.
+   ADDRESSED. The Soft-assignment Welford paragraph now documents the 1e-6 I covariance floor, the per-regime ESS logging, and the explicit decision not to re-weight on the grounds that a dormant regime's earlier occupancy provides stable moments. This is a defensible disclosure even if not the full IW-prior fix I had originally preferred.
+
+NEW CONCERNS
+
+None. The minor cosmetic items from round 2 (algorithm naming, per-path vs paired SE on Table 2, interpolation scheme in Appendix B) are non-blocking and can be handled in copy-edit.
+
+RECOMMENDATION: ACCEPT
+
+I recommend ACCEPT. The paper is now methodologically tight: the central theoretical caveat (Jensen), the two filter implementation choices (EMA transition update, Welford ESS), the CE annualisation approximation, and the likelihood-specification robustness are all disclosed in the text or appendix with numerical bounds. The quantitative conclusions are supported by ablations with paired Monte-Carlo standard errors, and the claimed adoption threshold is demonstrably robust to mild likelihood mis-specification. The framing - competitive-not-dominant against risk parity, with decision-transparency and drawdown as the contribution axes - is honest and matches the evidence. I recommend ACCEPT.

@@ -1,0 +1,108 @@
+Reviewer #2 (Empirical Finance / Financial Econometrics) — ROUND 2
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+==================================================================
+STATUS PER MAJOR ROUND-1 COMMENT
+==================================================================
+
+M1 (headline Sharpe mismatch) — ADDRESSED.
+    The abstract now reports Sharpe 0.26 (SE 0.03), which matches
+    table_main.csv (sharpe_mean = 0.2567, n=30). Risk parity (0.28) is
+    correctly flagged as comparable/superior on Sharpe, and the CRRA-CE
+    comparison explicitly states risk parity beats Narrative Regimes by
+    0.2 pp (2.6% vs. 2.4%). The repositioning as "competitive, not
+    dominant; decision-transparent alternative to risk parity" is an
+    honest and defensible framing.
+
+M2 (transaction-cost sweep) — PARTIAL / NOT.
+    This is the remaining concern. The released table_tc.csv is STILL
+    the stale version: annual_return, annual_vol, sharpe, sortino,
+    avg_turnover, and crra_ce_annual remain byte-identical across
+    tc_bps ∈ {0,5,10,20,50}; only cagr, max_drawdown, and calmar vary.
+    The paper replaces the multi-path CRRA narrative with a single-
+    seed (seed 900) verification showing CRRA-CE 6.65% → 1.98% as tau
+    rises 0 → 100 bps, and defers the multi-path table to the
+    replication bundle. The author has at least made the disclosure
+    transparent (Section 5.4 explicitly says the multi-path table is in
+    the bundle), but this leaves the reader unable to verify the
+    central-tendency claim from released data. A single seed is an
+    anecdote, not a robustness check. The fact that the stale file is
+    still shipped in results/tables/ — and contains the same bug I
+    flagged in round 1 — is a reproducibility red flag, even with the
+    caveat.
+
+M3 (paired MC standard errors) — ADDRESSED.
+    Table 1 now reports (mean, SE) for every metric; the Sharpe SE of
+    0.028 and the CRRA-CE SE of 0.002 make clear that Narrative
+    Regimes and Risk Parity are statistically indistinguishable at 5%
+    on Sharpe, and that the CRRA-CE gap is within 1 SE. The text
+    correctly describes this. The accuracy gap (+11.0 pp, SE 2.8 pp)
+    is likewise credibly bounded.
+
+M4 (baseline fairness / hyperparameters) — PARTIAL.
+    Rolling-MV window length and shrinkage parameters are still not
+    disclosed in the text; alpha=0.2 is now stated but the weight
+    inertia lambda=0.7 is only given for Narrative Regimes (not
+    clarified whether it applies to rolling MV). No HRP or min-variance
+    baseline added. Given the repositioning to "competitive not
+    dominant," this gap is less load-bearing than in round 1.
+
+M5 (DGP external validity) — NOT addressed, but Limitations section
+    now explicitly acknowledges this and frames the contribution as
+    internal consistency + decision rule, which is defensible for a DSS
+    framework paper.
+
+M6 (look-ahead-freedom semantic over-reach) — ADDRESSED.
+    Limitations paragraph now states the simulation-definitional nature
+    of the claim in plain language.
+
+==================================================================
+REMAINING CHERRY-PICKING CONCERNS
+==================================================================
+
+(i) The TC narrative is now anchored on seed 900, chosen — by the
+    author's own seed convention (Appendix A) — as the first seed of
+    the TC sweep. Without the multi-path table, a reader cannot rule
+    out that seed 900 happens to be a favourable draw. Given that the
+    per-seed CRRA-CE at tau=0 in the stale CSV ranges from 0.017 to
+    0.067 across the ten NR rows, seed 900 sits near the top of that
+    distribution.
+(ii) Seed-42 posterior figure remains a single-seed illustration.
+    Minor but worth an appendix distribution plot.
+(iii) No preregistration statement re: seed selection (round-1 m2).
+
+==================================================================
+RECOMMENDATION
+==================================================================
+MINOR REVISION (conditional)
+
+==================================================================
+JUSTIFICATION
+==================================================================
+The round-1 headline-integrity problems (M1, M3, M6) are fully
+resolved. The abstract and text now agree with table_main.csv, paired
+MC standard errors are reported, and the look-ahead framing is honest.
+The repositioning to a decision-transparent, competitive-not-dominant
+framework is an appropriate response that preserves the paper's
+genuine contribution (the SNR adoption threshold and the filter +
+regime-policy-mix decomposition).
+
+The remaining concern is the TC sweep (M2). The stale multi-path
+table in results/tables/table_tc.csv has a visible specification bug
+(Sharpe/CRRA-CE invariant to tc_bps) that will be spotted by any
+reviewer who opens the CSV; shipping it unchanged while the prose
+discusses a single seed is a credibility risk even with honest
+disclosure. For acceptance I require: (a) re-running the TC sweep with
+costs deducted at the per-period return level and replacing the CSV,
+or (b) removing table_tc.csv from the released artefacts and
+relabelling Section 5.4 as a single-path sensitivity illustration,
+deferring the multi-path claim to a clearly-labelled future-work note.
+Either is acceptable; (a) is strongly preferred. Disclosure of
+rolling-MV hyperparameters and a one-line preregistration note on
+seed selection should also be added.
+
+Given that all other revisions are substantive and honest, and the
+remaining fix is a bounded pipeline correction or a textual hedge,
+minor revision is warranted. Reject-level concerns from round 1 have
+been retired.

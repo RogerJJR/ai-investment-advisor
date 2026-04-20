@@ -1,0 +1,22 @@
+Reviewer #1 Report (Round 4, Final) - Methodology / Bayesian Filtering / Portfolio Optimization
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+I have re-read the round-4 manuscript. The author reports that round-4 changes are a
+cosmetic copyedit only, specifically a brief gloss on the Welford recursion at first use
+in Section 3.2 ("numerically-stable running means and covariances weighted by posterior
+regime probabilities"). I confirm this gloss is present and improves readability for
+readers outside the online-EM literature. No methodological content has changed relative
+to round 3, and none was requested.
+
+All substantive methodology concerns from rounds 1-2 were resolved in round 3: the Jensen
+caveat and DP-gap quantification (Appendix B), the moment-mix ablation row in Table 1,
+the EMA-vs-Dirichlet transition sensitivity and Welford ESS/covariance-floor disclosures
+(Appendix A), the CRRA-CE annualisation approximation disclosure with a quantified bias
+bound, and the mis-specified-likelihood robustness table. The ablations, paired-MC
+standard errors, and the honest "competitive, not dominant" framing against risk parity
+all remain in place.
+
+I confirm my round-3 recommendation without modification.
+
+RECOMMENDATION: ACCEPT

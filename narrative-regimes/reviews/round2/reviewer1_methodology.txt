@@ -1,0 +1,44 @@
+Reviewer #1 Report (Round 2) - Methodology / Bayesian Filtering / Portfolio Optimization
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+I thank the author for a careful, responsive revision. I evaluate each of my round-1 major comments below.
+
+RESOLUTION OF ROUND-1 MAJOR COMMENTS
+
+1. Overstated CRRA-optimality of the regime-policy-mix allocator.
+   ADDRESSED. Section 3.3 now correctly acknowledges that Jensen's inequality precludes a first-order approximation claim, reframes the allocator as a "heuristic decomposition" (preserving regime heterogeneity, exact at point-mass posteriors, interpretable as Bayesian model averaging), and Appendix A (app:jensen) quantifies the CRRA-CE gap against an exact finite-horizon DP solution on a reduced three-asset problem (mean ~14 bps/yr, IQR 5-22 bps; grows to ~50 bps under diffuse posteriors, <5 bps under concentrated ones). This is exactly the quantification I requested and, helpfully, the appendix also tells practitioners when the gap matters. Satisfactory.
+
+2. Narrative likelihood shares parametric form with the DGP.
+   PARTIALLY ADDRESSED. The Limitations subsection now discusses the self-fulfilling concern explicitly and reports a mis-specified-likelihood robustness check (5% bilateral asymmetry in the filter's signal prior) that leaves the conclusions unchanged. This is a good-faith response. However, (i) only results are mentioned; the experiment parameters and tables live in the replication bundle rather than the main text or appendix, and (ii) a 5% mean-asymmetry is a mild perturbation relative to the richer mis-specifications I suggested (heteroskedastic noise, correlated signal errors, temporally autocorrelated errors, confusion-matrix-style non-isotropy). I would accept the current level as sufficient for publication given the simulation-internal framing, but a half-page summary table in the appendix would strengthen the claim materially.
+
+3. Ad-hoc EMA transition-matrix update vs. Dirichlet soft-count.
+   NOT ADDRESSED. The code still contains the EMA-of-rank-1-outer-product update (regime_filter.py lines 142-145) and the paper only alludes to it as "smoothed co-occurrence estimator." There is no justification as a stochastic-approximation EM step and no sensitivity comparison against a Dirichlet soft-count alternative. This remains a soft concern: P only appears multiplicatively in the Markov predict step, and the reported results do not hinge on it sharply, so it does not block acceptance, but a one-paragraph justification (or a 2-line sensitivity appendix) is still warranted.
+
+4. Welford recursion ESS safeguard.
+   NOT ADDRESSED. allocator / filter code still accumulates sum_w, sum_wx, sum_wxx without an ESS floor or informative inverse-Wishart prior; only the 1e-6 I ridge is applied. Per-regime ESS for the stress regime can remain small for long windows, and CRRA-CE under gamma=5 is materially sensitive to the stress-regime covariance tail. A lightweight fix (report minimum per-regime ESS; impose an IW prior of strength e.g. 20 months) would be a further improvement. I will not make this blocking, but flag it for the record.
+
+5. CRRA-CE annualization.
+   NOT ADDRESSED. backtest.py lines 91-97 still computes monthly CE and then annualizes via (1+ce_monthly)^12 - 1, which is exact only for log utility (gamma=1). The paper does not state this approximation explicitly or report the exact time-aggregated CE. For gamma=5 over 360 months the bias is small but non-zero and is directly relevant to the headline "2.4% vs 2.6% for risk parity" comparison. A one-sentence note in Section 4.3 plus the exact figure in the bundle would fully resolve this. This is the single largest remaining minor-major item.
+
+6. Look-ahead audit & common random numbers.
+   ADDRESSED. Paired Monte-Carlo standard errors are now reported (Table 1), which implicitly confirms CRN across strategies. The information-partition logic in the filter vs. the shift(1) in backtest.py remains correct.
+
+ADDITIONAL ROUND-1 RESPONSES
+- AI usage declaration: ADDRESSED (Section 5.3 is appropriately detailed and CRediT-aligned).
+- Jensen inequality acknowledgement: ADDRESSED (explicit in Section 3.3).
+- Moment-mix ablation in Table 1: still not reported in the table itself despite being implemented in allocator.py (mode="moment_mix"). Given that the Discussion claims moment-mix "discards a meaningful portion of the hedging signal," a quantified row in Table 1 remains the most natural way to support this claim.
+
+NEW CONCERNS
+None of substance. The stationary-prior note (round-1 minor c) and the simulator std vs. beta reconciliation (round-1 minor b) do not appear to have been touched; please verify.
+
+REMAINING MINOR ISSUES
+- "Smoothed co-occurrence estimator" in Section 3.2 should name the algorithm and cite (stochastic-approximation EM or online Baum-Welch).
+- allocator.py line 125 still has `from copy import copy` inside the loop; cosmetic.
+- Standard errors on the ablation (Table 2) use per-path SD rather than paired-MC SE; paired SE would be tighter and more informative.
+- Appendix A should state which DP discretization and boundary conditions are used (25x25x25 grid is quoted but not the interpolation scheme).
+
+RECOMMENDATION: MINOR REVISION
+
+JUSTIFICATION
+The revision substantially strengthens the paper. The central theoretical issue (comment 1) is fully resolved in a disciplined way that also quantifies the heuristic's cost. The self-fulfilling concern (comment 2) is acknowledged in-text and addressed by a robustness check, albeit a modest one. Paired-MC SEs now support the statistical claims honestly. Three previously-raised items (EMA transition update, Welford ESS, CRRA-CE annualization) remain technically unfixed but are small-impact relative to the headline results and can be handled by brief textual clarifications plus supplementary runs in the bundle. Subject to: (i) explicit disclosure of the gamma-not-equal-to-1 CE-annualization approximation and the exact time-aggregated figure; (ii) a Dirichlet soft-count sensitivity row for P; (iii) one row for moment-mix in Table 1; and (iv) either an in-appendix table for the mis-specified-likelihood check or a pointer with result summary, I would support acceptance.

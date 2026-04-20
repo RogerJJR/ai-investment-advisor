@@ -1,0 +1,176 @@
+Reviewer #2 (Empirical Finance / Financial Econometrics)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+==================================================================
+SUMMARY
+==================================================================
+The manuscript proposes an online Bayesian regime filter that fuses an LLM-
+distilled narrative likelihood with a return-based Gaussian likelihood, plugged
+into a regime-policy-mix CRRA allocator, evaluated on a three-regime Gaussian
+Monte-Carlo testbed. The mechanical contribution (filter + allocator) is clean
+and reproducible, and the SNR-threshold framing is genuinely useful. However,
+the empirical case for the headline gains is not airtight: several numbers in
+the abstract and running text do not match the replication tables I was asked
+to audit, the transaction-cost evidence is not backed by the data in
+results/tables/table_tc.csv, and confidence intervals are essentially absent.
+
+==================================================================
+MAJOR COMMENTS
+==================================================================
+
+M1. Headline Sharpe figures in the abstract and Section 5.1 text do not
+    match Table 1 (nor the underlying CSV).
+    The abstract and Section 5.1 claim "Sharpe 0.30 vs 0.23 (60/40)" and
+    "Sharpe 0.30 vs. 0.23 (60/40), 0.22 (1/N), 0.28 (risk parity), 0.24
+    (rolling MV)." But the paper's own Table 1 (line 349) reports
+    Narrative Regimes Sharpe = 0.257, and results/tables/table_main.csv
+    gives sharpe_mean = 0.2567 (SD = 0.1997). RiskParity's sharpe_mean in
+    the CSV is 0.2772 - i.e. risk parity STRICTLY DOMINATES Narrative
+    Regimes on the paper's own primary risk-adjusted metric. The paper
+    briefly acknowledges the risk-parity comparison in CRRA-CE but the
+    abstract's Sharpe claim is simply incorrect. This is a serious
+    problem: an abstract that overstates the headline risk-adjusted
+    metric by ~17% relative and implies dominance over all baselines
+    when the data show sub-dominance vs. risk parity must be corrected
+    before any further review.
+
+M2. The transaction-cost sweep is not honestly presented; the table does
+    not vary with tc_bps.
+    results/tables/table_tc.csv contains tc_bps in {0, 5, 10, 20, 50},
+    but the annual_return, annual_vol, sharpe, sortino, avg_turnover,
+    and crra_ce_annual columns are byte-identical across every tc_bps
+    level - only cagr, max_drawdown, and calmar vary. Mechanically this
+    suggests that TC is being applied only to the cumulative equity
+    curve used for drawdown/CAGR, but NOT deducted from per-period
+    returns before computing Sharpe/Sortino/CRRA-CE - a specification
+    bug that invalidates the paper's core robustness claim. Moreover,
+    Section 5.4's narrative (Narrative Regimes CRRA-CE "declines from
+    6.7% at tau=0 bps to 6.2%, 4.3%, and 2.0% at tau=10, 50, 100 bps
+    respectively") cannot be reproduced from the released table: at
+    seed-900-like levels (NarrativeRegimes, crra_ce_annual = 0.0665),
+    the value is constant across all tc_bps in the file. The discussion
+    appears to be based on numbers the reader cannot verify. Either
+    the TC evaluation pipeline must be fixed and the table regenerated,
+    or the TC discussion must be deleted.
+
+M3. No standard errors / confidence intervals, yet many effect sizes are
+    smaller than one Monte-Carlo SD.
+    With n_paths = 30 and sharpe_std = 0.1997 (NarrativeRegimes), the
+    Monte-Carlo SE on the mean Sharpe is ~0.036, giving an approximate
+    95% CI of [0.186, 0.328]. The SE on the Sharpe difference vs.
+    RiskParity (assuming independent paths - the paper uses the same
+    30 seeds, so differences should be computed path-wise) is even
+    tighter, but the point estimate itself favors RiskParity. Similarly
+    the 11 pp accuracy gain (0.608 vs. 0.498 with SDs 0.160 and 0.222)
+    has a two-sample SE of roughly (0.160^2/30 + 0.222^2/30)^0.5 ~=
+    0.050; the gap is meaningful (z ~ 2.2) but not overwhelming, and
+    paired inference on the same paths would be more informative. I
+    need to see paired t-tests or bootstrap CIs on every reported
+    difference; the current presentation invites over-interpretation.
+
+M4. Fairness of baselines is uneven.
+    (i) Rolling MV: window length, shrinkage intensity, and whether it
+    is also subject to the 0.7 inertia smoother and the [0, w_bar] cap
+    applied to Narrative Regimes are not disclosed. (ii) The Narrative
+    Regimes allocator uses per-regime shrinkage toward a grand mean
+    (parameter alpha in Section 3.3) but the value of alpha is never
+    given; rolling MV presumably has none. (iii) Risk parity uses
+    inverse-volatility; a minimum-variance and an HRP (Lopez de Prado)
+    baseline would be standard in any 2025 allocation paper. (iv) The
+    ablation "RegimeOnly" uses the same filter with only the return
+    likelihood - good - but its moments and transition-matrix estimator
+    are identical to the narrative version, which means the ablation
+    measures ONLY the marginal information value of the narrative
+    likelihood at a given filter hyperparameterisation, not of regime-
+    switching vs. unconditional MV. The paper blurs this distinction.
+
+M5. External validity of the DGP is weakly supported.
+    The Gaussian-per-regime DGP with diagonal(P) = (0.95, 0.82, 0.60)
+    is calibrated by hand in Appendix A with seven-asset means and
+    vols chosen a priori. Three substantive gaps: (a) no heavy tails
+    (Cont 2001), (b) no skew or asymmetric-vol crash dynamics,
+    (c) per-regime correlation matrices are referenced as being in
+    the replication bundle but not stated in Appendix A (readers
+    cannot audit the critical cross-asset correlation structure, which
+    drives most of the allocator's tilts). Realism would be greatly
+    improved by either (i) matching the first four moments of a
+    multi-decade benchmark (e.g. Kenneth French factors + FRED),
+    (ii) validating that the simulated expansion/contraction/stress
+    shares and durations are consistent with NBER, or (iii) running
+    one Student-t stress test to show the ranking is invariant.
+    Without any of these, the discussion-section appeal to external
+    validity is hand-waving.
+
+M6. The look-ahead-freedom claim is simulation-definitional, not
+    methodological.
+    The paper claims look-ahead bias is "eliminated by construction".
+    True, the SIMULATION has no look-ahead. But the claim the reader
+    cares about is whether a real LLM pipeline, parameterised at
+    beta, would be look-ahead-free, and the answer is obviously no.
+    The simulation replaces the LLM with a Gaussian signal whose
+    precision is imposed. This is a valid sensitivity study; it is
+    not, and cannot be, evidence that an LLM deployment would avoid
+    look-ahead. The abstract's "eliminating look-ahead bias by
+    construction" and the contribution-list framing conflate these
+    two claims and should be softened.
+
+==================================================================
+MINOR COMMENTS
+==================================================================
+
+m1. Effect sizes. Only Sharpe, max DD, and CRRA-CE are reported in
+    prose. Please add a utility-equivalent return (fee equivalent
+    an investor would pay to switch from 60/40 to NR) and a paired
+    Diebold-Mariano-style test on monthly utility contributions.
+
+m2. Seed disclosure. Main experiment uses seeds 100-129 (30 seeds),
+    SNR sweep 500-519 (20 seeds), TC sweep 900-919, gamma sweep
+    1300-1319. These ranges are disjoint and reasonable, but the
+    paper should state explicitly whether seeds were chosen before
+    any results were inspected; otherwise the reader cannot rule out
+    specification search at the seed level. A one-line preregistration
+    statement would suffice.
+
+m3. Representative-seed prose (Section 5.4, seed 900; Section 5.5,
+    seed 42). Both are single-seed anecdotes used to illustrate
+    results. Either remove them or report the full 20-seed
+    distribution in an appendix.
+
+m4. Table 3 (SNR). The CRRA-CE for NarrativeRegimes at beta=1.00 is
+    reported as 0.0181; the mean across the 20 seeds in
+    table_snr.csv for snr=1.0, strategy=NarrativeRegimes should be
+    re-checked - it appears to round to ~0.018 but several individual
+    seeds are negative (e.g. -0.024) and the SD is large; please
+    add the cross-seed SD column.
+
+m5. Turnover accounting. Table 1 shows NarrativeRegimes avg_turnover
+    = 0.305 (SD = 0.220), an order of magnitude above the
+    inertia-smoothed 60/40 or risk parity (~0.03). A reader is
+    entitled to know whether the tau=10 bp cost deducted is computed
+    on the gross turnover or on a semi-rebalance definition; please
+    add the one-line definition used in the equity-curve construction.
+
+==================================================================
+RECOMMENDATION
+==================================================================
+MAJOR REVISION
+
+==================================================================
+JUSTIFICATION
+==================================================================
+The framework is conceptually sound and the SNR-threshold framing is a
+genuine contribution that fits Decision Support Systems well. But the
+empirical story as written contains (a) a numerically incorrect headline
+Sharpe claim in the abstract (M1), (b) a transaction-cost sweep whose
+released CSV does not support the paper's discussion (M2), (c) no
+uncertainty quantification despite small n_paths (M3), and (d) an
+over-reach on the look-ahead-freedom claim (M6). None of these is
+fatal - M1 is a text fix, M2 is a pipeline fix, M3 is a trivial
+bootstrap - but together they preclude acceptance in current form.
+I would be glad to see a revised version once the tables and the text
+agree, the TC experiment is re-run with costs deducted at the per-period
+level, and every reported difference is accompanied by a paired standard
+error or bootstrap CI. The DGP-realism concerns (M5) and baseline-fairness
+concerns (M4) are genuine but can be addressed in a revision by adding
+a Student-t robustness cell and disclosing all baseline hyperparameters.

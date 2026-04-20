@@ -1,0 +1,98 @@
+Reviewer #3 (AI/ML specialist, LLM applications in finance) -- ROUND 2
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Journal: Decision Support Systems
+Date: 2026-04-20
+
+================================================================
+STATUS PER ROUND-1 CONCERN
+================================================================
+
+M1 (Signal abstraction mismatch -- confusion matrices, AR(1) noise,
+calibration drift). PARTIALLY ADDRESSED. Section 5.2 ("Signal
+abstraction") now explicitly enumerates the three failure modes I
+flagged (non-isotropic confusion, temporal autocorrelation, calibration
+drift near transitions) and reframes beta* ~ 1 as a lower bound on the
+practical adoption threshold. This is the honest move. However, the
+authors opted for option (b) -- disclosure -- rather than option (a) --
+a confusion-matrix/AR(1) robustness experiment. Given that such an
+experiment is a one-day addition to simulator.py and would materially
+strengthen the external-validity argument, I regard this as acceptable
+for a first publication but noted as a remaining soft weakness.
+
+M2 (SNR calibration to 2025 LLM quality). NOT DIRECTLY ADDRESSED. The
+beta grid {0.25, ..., 4} is unchanged, and I see no overlay of published
+LLM macro-classification accuracy against the sweep in Figure 1 or
+Table 3. That said, the authors' addition of Kim-Muhn-Nikolaev 2024 and
+Fatouros 2024 citations implicitly anchors the reader to the relevant
+empirical literature, and the abstract/results language no longer claims
+"strict dominance" -- positioning Narrative Regimes as "competitive, not
+dominant" relative to risk parity. This defuses the most concerning
+overclaim even without a beta-to-accuracy mapping. I still recommend
+adding a single sentence near Figure 1 stating that beta in [0.5, 1.5]
+corresponds to the F1 range of current production LLM pipelines.
+
+M3 (Look-ahead bias overclaim). ADDRESSED. The Contributions list
+(item 2) now reads "establishes *internal* consistency -- it is
+complementary to, not a substitute for, empirical replication," and
+Section 5.2 opens with "Simulation internal validity, not external."
+This is the correct framing. One residue: the Conclusion still contains
+"eliminates look-ahead bias by construction," which should be softened
+to "eliminates LLM corpus contamination by construction" for consistency.
+
+M4 (Differentiation from Chen et al. 2024 LLM-Black-Litterman).
+MINIMALLY ADDRESSED. The related-work paragraph now states the
+integration-level distinction ("embed the LLM signal within a Bayesian
+regime-filter rather than as a direct asset-level view"), which is the
+intellectual core I requested. A side-by-side inference diagram was not
+added, but the verbal differentiation is now sufficient for a reader to
+locate the contribution in the signal-integration spectrum.
+
+M5 (AI usage declaration -- Elsevier compliance). ADDRESSED. Section 6.3
+now names "Claude Opus 4.6 by Anthropic, accessed via the Claude desktop
+application in April 2026," provides CRediT-aligned role disclosure
+(Conceptualization, Software, Writing, Visualization), states that the
+author independently verified results, confirms the LLM is not listed as
+an author, and discloses that two non-trivial bugs were caught during
+human verification. This exceeds Elsevier's minimum bar.
+
+M6 (Tang & Zhang 2024 survey engagement). NOT ADDRESSED. The citation
+remains a single sentence and the paper still does not state which
+taxonomy cell Narrative Regimes occupies. Minor.
+
+================================================================
+REMAINING ISSUES
+================================================================
+
+R1. One residual "eliminates look-ahead bias by construction" phrase in
+Section 7 (Conclusion) contradicts the corrected framing elsewhere.
+Trivial fix.
+
+R2. No beta-to-accuracy overlay on Figure 1. Can be a one-line footnote.
+
+R3. No confusion-matrix robustness experiment. I accept the disclosure-
+only route but note it as a limitation for readers.
+
+R4. Taxonomy placement against Tang & Zhang (2024) still absent.
+
+================================================================
+RECOMMENDATION
+================================================================
+MINOR REVISION
+
+================================================================
+JUSTIFICATION
+================================================================
+The authors have honestly engaged with the three most substantive
+round-1 concerns: the signal abstraction is now properly flagged, the
+look-ahead claim is properly circumscribed as internal consistency, and
+the repositioning of the framework as "competitive, not dominant"
+against risk parity removes the overclaim that motivated my M2. The AI
+usage declaration is now Elsevier-compliant with model version, access
+window, and CRediT role disclosure. The remaining issues are textual
+(one residual phrase, one figure footnote, one taxonomy sentence) and
+can be handled in a minor-revision round without further refereeing.
+The absence of a confusion-matrix robustness experiment is the one
+place where I would, in a perfect world, have preferred an additional
+simulation, but the transparent disclosure in Section 5.2 combined with
+the deflated headline claims makes the paper defensible as it stands.
+I recommend MINOR REVISION.

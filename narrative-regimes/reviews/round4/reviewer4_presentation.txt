@@ -1,0 +1,36 @@
+================================================================================
+Reviewer #4 Report - Round 4 (Final, Senior Editor / Writing & Presentation)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for
+            Long-Horizon Investors"
+Target venue: Decision Support Systems (Elsevier)
+Date of review: 2026-04-20
+================================================================================
+
+VERIFICATION OF ROUND-4 COPYEDIT FIXES
+--------------------------------------
+1. Chen2024LLMBL entry type. CONFIRMED. references.bib lines 10-16 now
+   @inproceedings with booktitle = ICLR 2025. The elsarticle-harv warning
+   this previously produced will no longer fire.
+
+2. "Regimes of parameter space" wording. CONFIRMED. main.tex line 115 now
+   reads "quantify the ranges of parameter space in which adoption is
+   justified." Reads cleanly.
+
+3. Table 1 caption trimmed. CONFIRMED. Lines 395-399 retain units (decimal
+   fractions / monthly fraction of NAV rebalanced) and the "best value per
+   column in bold" rule only; the earlier result sentence has been removed,
+   so the caption is now descriptive, not interpretive.
+
+4. Welford gloss on first use. CONFIRMED. Line 238 reads "soft-assignment
+   Welford recursions (numerically-stable running means and covariances
+   weighted by posterior regime probabilities)", which fully demystifies the
+   term for non-signal-processing readers without expanding paper length.
+
+All four round-3 residual items are cleared. No new presentation issues
+detected in my re-read.
+
+RECOMMENDATION
+--------------
+ACCEPT.
+
+================================================================================

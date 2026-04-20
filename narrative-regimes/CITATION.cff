@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+authors:
+  - family-names: Chuang
+    given-names: Roger
+    email: roger.chuang@jjr.com.tw
+    affiliation: Independent Researcher
+version: 0.1.0
+date-released: 2026-04-20
+license: MIT
+type: software
+repository-code: "https://github.com/anonymised/narrative-regimes"
+keywords:
+  - strategic-asset-allocation
+  - large-language-models
+  - regime-switching
+  - bayesian-filter
+  - decision-support-systems
+  - long-horizon-investors
+preferred-citation:
+  type: article
+  title: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+  authors:
+    - family-names: Chuang
+      given-names: Roger
+  year: 2026
+  journal: "Working paper (under review at Decision Support Systems)"

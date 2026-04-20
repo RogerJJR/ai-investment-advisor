@@ -1,0 +1,72 @@
+================================================================================
+Reviewer #4 Report - Round 3 (Senior Editor / Writing & Presentation)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for
+            Long-Horizon Investors"
+Target venue: Decision Support Systems (Elsevier)
+Date of review: 2026-04-20
+================================================================================
+
+STATUS PER ROUND-2 COMMENT
+--------------------------
+MAJOR 4 (thin Discussion / short Conclusion). RESOLVED. The "Implications for
+practice" subsection (lines 548-574) now expands into five labelled items --
+(i) quantify before adopting, (ii) preserve regime heterogeneity, (iii)
+ablate, don't benchmark, (iv) respect turnover budgets, (v) use as a
+decision-support lens. Each is concrete and actionable for a CIO audience, and
+(iv) explicitly connects to the lambda inertia parameter and turnover budgets
+that round-2 flagged as missing. The Conclusion (lines 636-652), while still
+rendered as one paragraph, now articulates an empirical replication roadmap
+including the "trusted third party to preclude implicit look-ahead during the
+development of the filter" language -- the substantive gap is closed.
+
+MAJOR 5 (table/figure self-containment). PARTIALLY RESOLVED. Table 1 caption
+(lines 394-399) now specifies units: "decimal fractions" for return / vol / DD
+/ CRRA-CE and "monthly fraction of NAV rebalanced" for turnover. This fully
+addresses the round-2 units complaint. However the caption still carries the
+result statement "Narrative Regimes is second-best on Sharpe and CRRA-CE but
+strictly better than all non-regime baselines" -- a result sentence that
+belongs in the body, not the caption. Table 3 (tab:snr) column order is
+unchanged. Figure 1 caption still does not explicitly name the RegimeOnly
+baseline crossed in the curve.
+
+MINOR (LopezLira year). RESOLVED. references.bib line 5 now reads year=2023
+with note "Available at SSRN 4412788; revised 2024", matching the 2023 in-text
+citation.
+
+MINOR (book / proceedings bib entries). PARTIALLY RESOLVED. Campbell2002 is now
+@book (line 18), MichaudMichaud2008 is now @book (line 207), Brown2020GPT3 is
+now @inproceedings (line 252). Chen2024LLMBL (line 10) remains @article
+despite being ICLR proceedings; elsarticle-harv will still emit a warning for
+this entry. KimEtAl2025HARLF and Wang2025SectorAllocation are arXiv preprints
+typed as @article -- acceptable but @misc would be cleaner.
+
+REMAINING PRESENTATION ISSUES
+-----------------------------
+- Line 115: "quantify the regimes of parameter space" persists; should read
+  "regions." This was flagged in round 2 and is a trivial one-word fix.
+- Table 1 caption: trim the final sentence (result statement) to the bolding
+  rule only.
+- Chen2024LLMBL entry type @article -> @inproceedings (booktitle=ICLR 2025).
+- Section numbering inconsistency with the response letter (sec:ai-usage is
+  subsection 5.3, not Section 6) -- cosmetic.
+- "Welford recursion" still unglossed at first appearance (line 239); fine for
+  DSS's methodological audience but a one-line parenthetical would help.
+
+RECOMMENDATION
+--------------
+ACCEPT (conditional on editorial/copyediting pass).
+
+================================================================================
+
+VERDICT PARAGRAPH
+-----------------
+The five substantive round-2 items -- managerial implications expansion,
+empirical-replication Conclusion, Table 1 unit footnote, LopezLira year
+consistency, and book/proceedings bib entry types -- are resolved or
+substantively addressed. What remains is a short list of cosmetic items
+(Chen2024LLMBL entry type, the "regimes of parameter space" wording, a caption
+trim, and optional glossing of "Welford") that do not affect the manuscript's
+scientific content or its suitability for Decision Support Systems. On
+presentation grounds, the paper is ready to accept, and the residual items can
+be cleaned up in a standard proof-stage copyedit.
+================================================================================

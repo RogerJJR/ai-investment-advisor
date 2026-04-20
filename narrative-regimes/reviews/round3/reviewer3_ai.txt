@@ -1,0 +1,72 @@
+Reviewer #3 (AI/ML specialist, LLM applications in finance) -- ROUND 3
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Journal: Decision Support Systems
+Date: 2026-04-20
+
+================================================================
+STATUS PER ROUND-2 COMMENT
+================================================================
+
+R1 (Residual "eliminates look-ahead bias" phrase in Conclusion).
+ADDRESSED. Section 7 (Conclusion, l.641-643) now reads "In a
+Monte-Carlo study that is free of look-ahead contamination by
+construction," which is the correct framing -- the simulator cannot
+eliminate a bias that only attaches to empirical LLM evaluations, but
+it can, by construction, avoid contamination from the LLM's own
+training corpus. The Conclusion additionally flags (l.650-652) that
+empirical replication should be "conducted with a trusted third party
+to preclude implicit look-ahead during the development of the filter."
+This is a strong, honest note that I did not explicitly request but
+welcome; it pre-empts the obvious post-publication objection that the
+author (who has seen the simulator's parameters) is not a neutral
+party for empirical replication.
+
+R2 (Beta-to-accuracy overlay on Figure 1). ADDRESSED. The Figure 1
+caption (l.474-481) now includes the translation formula
+beta = 1/sigma^2 where sigma is "the RMS residual of the LLM's
+per-class scores from the true-class indicator," and states that this
+lets a practitioner validate their institution's LLM before exposing
+live capital. This is cleaner than the one-line footnote I suggested
+and gives the reader a directly computable mapping from standard
+classification diagnostics to the SNR grid. I consider this fully
+resolved.
+
+R3 (No confusion-matrix robustness experiment). UNCHANGED. The
+authors continue to rely on disclosure in Section 5.2 ("Signal
+abstraction") rather than run a confusion-matrix sweep. As noted in
+round 2, I accept this; the disclosure is honest and the beta*
+threshold is explicitly framed as a lower bound.
+
+R4 (Taxonomy placement against Tang-Zhang 2024). ADDRESSED. The
+Related Literature section (l.174-178) now states that in the
+Tang-Zhang taxonomy, Narrative Regimes occupies "the unoccupied
+intersection of macro-regime signal extraction, Bayesian belief
+updating, and long-horizon utility-based allocation," and contrasts
+this against the existing clusters (asset-level forecasting,
+sentiment-to-signal pipelines, short-horizon RL). This is exactly the
+cell-level placement I asked for and clinches the contribution's
+novelty at a glance.
+
+================================================================
+REMAINING CONCERNS
+================================================================
+
+None that block publication. The confusion-matrix experiment (R3)
+remains a suggested extension rather than a revision requirement.
+
+================================================================
+RECOMMENDATION
+================================================================
+ACCEPT
+
+================================================================
+JUSTIFICATION
+================================================================
+All four round-2 textual items are resolved and the one substantive
+non-textual item (R3) was explicitly accepted as a disclosure-only
+route in round 2. The paper's framing is now fully internally
+consistent: internal-validity claims are clearly separated from
+external-validity claims; the beta threshold is anchored to a
+measurable LLM-pipeline diagnostic; the Tang-Zhang cell placement
+resolves the novelty question. The AI-usage declaration is
+Elsevier-compliant. I recommend acceptance.

@@ -1,0 +1,159 @@
+Reviewer #3 (AI/ML specialist, LLM applications in finance)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Journal: Decision Support Systems
+Date: 2026-04-20
+
+================================================================
+SUMMARY
+================================================================
+The manuscript proposes "Narrative Regimes," a three-part DSS framework that
+fuses an LLM-distilled narrative signal with a return-based rolling Gaussian
+likelihood in an online Bayesian regime filter, then feeds the regime posterior
+to a CRRA-preserving regime-policy-mix allocator. Evaluation is conducted
+entirely on a three-regime Monte-Carlo simulator, where the "LLM signal"
+is modelled as a one-hot indicator of the latent regime corrupted by additive
+Gaussian noise with precision beta = SNR (see simulator.py:150-173 and
+regime_filter.py:118-125). The authors sweep beta in {0.25, 0.5, 1, 2, 4},
+report an 11-pp accuracy gain and ~1.3-pp CRRA-CE improvement over 60/40, and
+argue for an SNR adoption threshold near beta = 1. The intended contribution is
+threefold: (i) LLM-aware long-horizon SAA, (ii) a look-ahead-free evaluation
+protocol, and (iii) a practitioner-facing decision rule. The implementation is
+clean and reproducible, and the ablation against a no-narrative baseline is a
+genuine methodological strength.
+
+================================================================
+MAJOR COMMENTS
+================================================================
+
+M1. The noisy-one-hot Gaussian signal model is a weak proxy for real
+LLM outputs and the paper underplays the mismatch.
+The signal generator (simulator.py:168-171) draws
+s_t = e_{z_t} + N(0, (1/SNR)^2 I_K), which assumes (a) unbiased coordinates,
+(b) isotropic noise, (c) independence across time, and (d) perfect calibration
+to the *true* latent regime. Real LLM news extractors exhibit (i) strong
+regime-label biases (expansion overweighted in bull-market training corpora),
+(ii) cross-regime confusion structures that are decidedly non-isotropic
+(contraction-vs-stress confusion >> expansion-vs-stress), (iii) temporal
+autocorrelation of errors driven by persistent narrative framings in the news
+stream, and (iv) calibration drift near regime transitions, which is precisely
+when the signal is most decision-relevant. None of these are captured. The
+paper should either (a) extend the generator to include a confusion-matrix
+prior and AR(1) noise, or (b) explicitly list these as assumptions limiting
+external validity. A minimal robustness experiment replacing isotropic noise
+with a calibrated confusion matrix would substantially strengthen the claim.
+
+M2. SNR calibration to 2025 LLM quality is undocumented.
+The beta grid {0.25, ..., 4} is presented without justification against any
+empirical anchor. Recent work (e.g., Lopez-Lira & Tang 2023 on GPT-style news
+sentiment; Bybee 2023-2024 on topic-level macro signals; FinGPT/PIXIU
+benchmarks) implies realistic three-class macro-regime F1 in the 0.55-0.70
+range on out-of-sample windows, which maps to beta roughly in [0.5, 1.5], not
+up to 4. The reported "strictly dominates at beta >= 2" result therefore sits
+in a region that is optimistic relative to current LLM capability. Please (i)
+map beta to an observable accuracy/AUC, (ii) overlay published LLM
+classification performance on Figure 1, and (iii) temper the adoption-
+threshold language to reflect that beta = 1 is already near the frontier of
+what production LLM pipelines deliver in 2025.
+
+M3. "Eliminates look-ahead bias by construction" is overstated.
+Section 1 and the contributions list repeatedly advertise elimination of
+look-ahead bias. What the design actually eliminates is *LLM training-corpus
+contamination of the evaluation*. It introduces a different and arguably more
+severe concern: the data-generating process is itself an artifact chosen by
+the authors, with regime moments, transition matrix, and signal noise all
+hand-specified in simulator.py. Because the filter's likelihoods are
+well-specified by construction under exactly this DGP, the experiment
+primarily tests internal consistency, not external validity. Please rewrite
+the claim as "eliminates LLM corpus contamination" rather than "look-ahead
+bias" (these are not synonymous in the backtesting literature), and add at
+least one DGP-misspecification robustness check (e.g., Student-t innovations,
+wrong K, mis-specified transition matrix).
+
+M4. Differentiation from Chen et al. 2024/2025 (LLM-Black-Litterman) is
+underdeveloped.
+The related-work paragraph cites Chen2024LLMBL in a single sentence and does
+not analyse where the two frameworks sit on the signal-integration spectrum.
+BL absorbs LLM outputs as *views with confidences* on asset-level means;
+Narrative Regimes absorbs them as a *regime likelihood*. Both are Bayesian,
+and the operational difference (regime-conditional hedging vs direct return
+tilting) is the intellectual core of the positioning. A dedicated half-page
+comparing the two, ideally with a side-by-side inference diagram and a note on
+what SNR regime each approach tolerates, would materially strengthen the
+contribution. Right now a skeptical reader can reasonably ask whether a
+straight BL implementation with a regime-indicator view would achieve the
+same result with less machinery.
+
+M5. The AI usage declaration needs to align with Elsevier's current policy.
+The declaration (section 7.3, lines 505-515) states Claude was used for
+"outline, scaffolding, drafting, replication artifacts" and asserts author
+responsibility. Elsevier's 2024-2025 AI policy for authors
+(https://www.elsevier.com/about/policies/publishing-ethics) additionally
+requires: (i) disclosure in the Methods or a dedicated statement *before*
+references, (ii) explicit statement that AI was *not* used to generate or
+alter research data or core scientific content, (iii) naming the tool/version,
+and (iv) that AI tools are not listed as authors. Two deficiencies:
+(a) the declaration does not name a specific model version or access date
+(e.g., "Claude Sonnet 4.5, accessed 2026-03"), and (b) the phrasing "scaffold
+the Python implementation" is ambiguous — please clarify that the final
+experimental code was author-reviewed line-by-line and that no simulation
+parameters or numerical results were produced by the LLM without independent
+verification. A minor restructuring into a "Declaration of AI usage" block
+placed immediately before the bibliography would make compliance unambiguous.
+
+M6. Engagement with Tang & Zhang (2024) survey is thin.
+Tang & Zhang is cited once as a "benchmark survey" without discussion of
+where the present work falls within its taxonomy (signal extraction vs.
+portfolio integration vs. end-to-end RL). The survey in particular catalogs
+existing approaches to temporal leakage; the paper should state which class
+Narrative Regimes belongs to and which open problems from the survey it
+addresses. As written, a reader cannot tell whether the framework is novel
+relative to the surveyed taxonomy or a re-instantiation of an existing class.
+
+================================================================
+MINOR COMMENTS
+================================================================
+
+m1. Table 1 shows Narrative Regimes tied or *slightly worse* than the
+RegimeOnly ablation on Sharpe (0.257 vs 0.259) and CRRA-CE (0.0236 vs 0.0239).
+The abstract and introduction claim a clear benefit from narrative signals;
+the ablation suggests the *filter* is doing most of the work at beta = 1. This
+honest result should be foregrounded, not buried.
+
+m2. The inconsistency between "Sharpe 0.30" in the abstract and "Sharpe 0.257"
+in Table 1 needs to be reconciled. Either the abstract refers to a different
+configuration or it is a residual from an earlier draft.
+
+m3. The narrative-signal precision parameter (beta in main text, equated with
+SNR) and the narrative_weight FilterConfig field (regime_filter.py:42) are
+the same thing but not labeled consistently — worth a sentence.
+
+m4. Figure 1's crossover-at-beta=1 claim depends on two points (beta=1 and
+beta=2) separated by a coarse grid. Adding beta in {1.25, 1.5, 1.75} would
+make the threshold claim far more defensible.
+
+m5. The 30-path Monte-Carlo, while larger than typical in this literature,
+does not produce reported confidence intervals. Please add bootstrap or
+paired-difference standard errors to Tables 1-3.
+
+================================================================
+RECOMMENDATION
+================================================================
+MAJOR REVISION
+
+================================================================
+JUSTIFICATION
+================================================================
+The paper articulates a genuinely interesting DSS contribution and the
+implementation is reproducible, but three issues (M1, M2, M3) combine to
+weaken the headline claim. The abstraction from "LLM news output" to
+"one-hot plus isotropic Gaussian noise" is too loose without either
+justification or robustness checks; the SNR sweep is not tethered to real
+2025 LLM performance; and the phrase "eliminates look-ahead bias" overreaches
+what a self-specified simulator can deliver. M4 and M6 are correctable
+positioning issues, and M5 is a straightforward compliance fix. None of
+these require new methodology — they require honesty calibration, one
+robustness experiment with a confusion-matrix noise model, and an empirical
+anchoring of beta against published LLM macro-classification accuracy. With
+those additions, the paper would be a credible DSS contribution; without
+them it risks overselling a simulation-only study as a validation of LLM
+signals for SAA.

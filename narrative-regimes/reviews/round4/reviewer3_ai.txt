@@ -1,0 +1,28 @@
+Reviewer #3 (AI/ML specialist, LLM applications in finance) -- ROUND 4 (FINAL)
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation for Long-Horizon Investors"
+Journal: Decision Support Systems
+Date: 2026-04-20
+
+================================================================
+RECOMMENDATION
+================================================================
+ACCEPT
+
+================================================================
+JUSTIFICATION
+================================================================
+Round 4 was a cosmetic copyedit pass only, and I have re-read the
+manuscript end-to-end to confirm that no substantive change was
+introduced that would re-open prior AI/ML concerns. The framing
+language remains internally consistent: "free of look-ahead
+contamination by construction" (Conclusion, l.642-643) is preserved,
+"competitive, not dominant" against risk parity is intact in the
+abstract and Section 4.1, the beta = 1/sigma^2 translation in the
+Figure 1 caption (l.474-481) is unchanged, and the Tang-Zhang cell
+placement in Section 2 (l.174-178) still anchors the novelty claim.
+The Elsevier-compliant AI usage declaration (Section 5.3) retains
+model name, version, access window, and CRediT-aligned roles. The
+mis-specified-likelihood robustness note in Appendix A continues to
+backstop the SNR threshold claim. None of the four AI-track concerns
+from rounds 1-3 are reactivated by the cosmetic edits. I confirm my
+round-3 ACCEPT without remark.
