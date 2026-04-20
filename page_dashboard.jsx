@@ -17,7 +17,8 @@ function Dashboard({ risk }) {
   const holdings = React.useMemo(() => RT.applyQuotesToHoldings(userHoldings, quotes), [userHoldings, quotes]);
   const liveCount = holdings.filter(h => h.live).length;
   const usdTwd = quotes['TWD=X']?.price;
-  const liveAllocation = React.useMemo(() => RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd), [holdings, usdTwd]);
+  const riskTargets = React.useMemo(() => RT.targetsForRisk(DATA.allocation, risk), [risk]);
+  const liveAllocation = React.useMemo(() => RT.computeLiveAllocation(holdings, riskTargets, usdTwd), [holdings, riskTargets, usdTwd]);
   const totalMV = React.useMemo(() => RT.totalValueTWD(holdings, usdTwd), [holdings, usdTwd]);
   const liveSignals = React.useMemo(() => (
     status === 'live'

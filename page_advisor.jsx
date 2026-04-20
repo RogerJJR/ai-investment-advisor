@@ -10,7 +10,8 @@ function Advisor({ risk }) {
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const usdTwd = quotes['TWD=X']?.price;
 
-  const target = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
+  const riskTargets = React.useMemo(() => RT.targetsForRisk(DATA.allocation, risk), [risk]);
+  const target = RT.computeLiveAllocation(holdings, riskTargets, usdTwd);
   const selected = target.find(a => a.name === selectedSlice) || target[0];
   const diff = selected.target - selected.current;
 

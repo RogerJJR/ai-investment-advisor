@@ -455,6 +455,29 @@
     return rets;
   }
 
+  // Scale DATA.allocation targets by a risk profile.
+  // Groups sectors into 股 / 債 / 另類 and reweights to match risk-based ratios,
+  // then distributes within each group proportionally to DATA.allocation.
+  const RISK_MIX = {
+    conservative: { stock: 30, bond: 60, other: 10 },
+    moderate:     { stock: 64, bond: 20, other: 16 },
+    aggressive:   { stock: 85, bond: 10, other:  5 },
+  };
+  const STOCK_SECTORS = ['美股','台股','全球'];
+  const BOND_SECTORS  = ['債券'];
+  function targetsForRisk(baseAllocation, risk) {
+    const mix = RISK_MIX[risk] || RISK_MIX.moderate;
+    const groupOf = (name) => STOCK_SECTORS.includes(name) ? 'stock'
+                            : BOND_SECTORS.includes(name)  ? 'bond' : 'other';
+    const groupBaseTotal = { stock: 0, bond: 0, other: 0 };
+    baseAllocation.forEach(a => { groupBaseTotal[groupOf(a.name)] += a.target; });
+    return baseAllocation.map(a => {
+      const g = groupOf(a.name);
+      const scale = groupBaseTotal[g] ? mix[g] / groupBaseTotal[g] : 1;
+      return { ...a, target: Math.round(a.target * scale * 10) / 10 };
+    });
+  }
+
   // Re-render hook: returns `Date.now()` refreshed every `intervalMs`.
   // Components that read `relTime(updatedAt)` can call this to keep labels fresh.
   function useNow(intervalMs = 15000) {
@@ -480,6 +503,7 @@
     generateAllocationSignals,
     generateRebalancePlan,
     inferCurrency,
+    targetsForRisk,
     holdingMarketValueTWD,
     totalValueTWD,
     totalCostTWD,
