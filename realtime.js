@@ -139,11 +139,76 @@
   }
 
   async function fetchMany(tickers) {
-    const results = await Promise.allSettled(tickers.map(fetchYahooQuote));
+    const twMap = new Map();   // code -> [ticker]
+    const others = [];
+    for (const t of tickers) {
+      const m = t.match(/^(\d{4,6}[A-Z]?)\.TW$/);
+      if (m) {
+        const code = m[1];
+        if (!twMap.has(code)) twMap.set(code, []);
+        twMap.get(code).push(t);
+      } else {
+        others.push(t);
+      }
+    }
+
     const out = {};
-    results.forEach((r, i) => {
-      if (r.status === 'fulfilled') out[tickers[i]] = r.value;
-    });
+
+    // Taiwan tickers: batch-fetch via MIS (real-time 5-sec, covers TSE + TPEX)
+    if (twMap.size) {
+      try {
+        const misResult = await fetchMisBatch([...twMap.keys()]);
+        for (const [code, q] of Object.entries(misResult)) {
+          (twMap.get(code) || []).forEach((t) => { out[t] = q; });
+        }
+      } catch { /* all MIS failed → fall through to Yahoo */ }
+    }
+
+    // TW tickers MIS missed + non-TW → individual fetchYahooQuote
+    const remaining = [
+      ...[...twMap.entries()].flatMap(([code, arr]) => arr.filter(t => !out[t])),
+      ...others,
+    ];
+    if (remaining.length) {
+      const results = await Promise.allSettled(remaining.map(fetchYahooQuote));
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') out[remaining[i]] = r.value;
+      });
+    }
+    return out;
+  }
+
+  // ── TWSE MIS: real-time 5-second quotes, covers BOTH 上市 (tse_) and 上櫃 (otc_)
+  const MIS_URL = 'https://mis.twse.com.tw/stock/api/getStockInfo.jsp';
+
+  async function fetchMisBatch(codes) {
+    if (!codes.length) return {};
+    // Try both tse_ and otc_ prefix for each code; MIS returns only matching entries
+    const ex_ch = codes.flatMap(c => [`tse_${c}.tw`, `otc_${c}.tw`]).join('|');
+    const url = `${MIS_URL}?ex_ch=${encodeURIComponent(ex_ch)}&json=1&_=${Date.now()}`;
+    const json = await fetchWithProxy(url);
+    const arr = json?.msgArray || [];
+    const out = {};
+    for (const r of arr) {
+      const code = r.c;
+      if (!code || out[code]) continue;
+      const prev = parseFloat(r.y);
+      const zRaw = parseFloat(r.z);
+      const price = (zRaw && !isNaN(zRaw)) ? zRaw : prev;
+      if (!price || isNaN(price)) continue;
+      const change = (zRaw && !isNaN(zRaw) && prev) ? price - prev : 0;
+      out[code] = {
+        ticker: code + '.TW',
+        price,
+        previousClose: prev || price,
+        change,
+        changePct: prev ? (change / prev) * 100 : 0,
+        currency: 'TWD',
+        marketState: (zRaw && !isNaN(zRaw)) ? 'MIS' : 'MIS-PRE',
+        time: r.t ? new Date(`${(r.d||'').replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3')}T${r.t}+08:00`) : new Date(),
+        exchange: r.ex, // 'tse' or 'otc'
+      };
+    }
     return out;
   }
 
@@ -877,6 +942,7 @@
     fetchYahooQuote,
     fetchTwseAll,
     fetchTwseQuote,
+    fetchMisBatch,
     fetchMany,
     fetchYahooHistory,
     fetchHistoryMany,
