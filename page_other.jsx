@@ -397,7 +397,7 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
         </div>
       </div>
 
-      <div className="card">
+      <div className="card" style={{marginBottom:'var(--density-gap)'}}>
         <div className="card-title" style={{marginBottom:14}}>顯示偏好</div>
         <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:20}}>
           <div>
@@ -419,7 +419,113 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
           </div>
         </div>
       </div>
+
+      <BackupRestoreCard/>
     </>
+  );
+}
+
+const BACKUP_KEYS = [
+  { key: 'ai-advisor-holdings-v1',     label: '持股資料' },
+  { key: 'ai-advisor-prefs-v1',        label: '偏好設定' },
+  { key: 'ai-advisor-signal-state-v1', label: '訊號處理紀錄' },
+  { key: 'ai-advisor-chat-v1',         label: '對話紀錄' },
+  { key: 'ai-advisor-theme-v1',        label: '主題偏好' },
+];
+
+function BackupRestoreCard() {
+  const fileRef = React.useRef(null);
+
+  const exportBackup = () => {
+    const data = {};
+    BACKUP_KEYS.forEach(({ key }) => {
+      const v = localStorage.getItem(key);
+      if (v != null) data[key] = v;
+    });
+    const payload = {
+      app: 'ai-investment-advisor',
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      data,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `ai-advisor-backup-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success(`已匯出 ${Object.keys(data).length} 項設定`, '備份完成');
+  };
+
+  const importBackup = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || ''));
+        if (!parsed || parsed.app !== 'ai-investment-advisor' || !parsed.data) {
+          toast.error('檔案格式不符合此應用的備份格式。'); return;
+        }
+        const keys = Object.keys(parsed.data).filter(k => BACKUP_KEYS.find(b => b.key === k));
+        if (!keys.length) { toast.error('備份內容為空,沒有可還原的項目。'); return; }
+        if (!confirm(`將還原 ${keys.length} 項設定,並覆蓋你目前在瀏覽器中的資料。確定?`)) return;
+        keys.forEach(k => {
+          const v = parsed.data[k];
+          if (typeof v === 'string') localStorage.setItem(k, v);
+        });
+        toast.success('已還原設定,頁面即將重新整理以套用。', '還原完成');
+        setTimeout(() => location.reload(), 900);
+      } catch (e) {
+        toast.error('備份檔解析失敗:' + e.message);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const clearAll = () => {
+    if (!confirm('確定要清除所有在瀏覽器中的資料?包含持股、偏好、對話與訊號紀錄,且無法復原。')) return;
+    BACKUP_KEYS.forEach(({ key }) => { try { localStorage.removeItem(key); } catch {} });
+    toast.success('已清除所有本地資料,頁面即將重新整理。');
+    setTimeout(() => location.reload(), 900);
+  };
+
+  const sizes = BACKUP_KEYS.map(({ key, label }) => {
+    const v = localStorage.getItem(key);
+    return { key, label, bytes: v ? new Blob([v]).size : 0, present: v != null };
+  });
+  const totalBytes = sizes.reduce((s, i) => s + i.bytes, 0);
+  const fmtBytes = (b) => b < 1024 ? b + ' B' : (b / 1024).toFixed(1) + ' KB';
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">備份與還原</div>
+          <div className="card-sub">所有資料僅存在你的瀏覽器。備份為 JSON 檔案,可用於換裝置或清除快取前留存。</div>
+        </div>
+        <span className="chip">{fmtBytes(totalBytes)}</span>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(180px, 1fr))', gap:10, marginBottom:14}}>
+        {sizes.map(s => (
+          <div key={s.key} style={{padding:10, background:'var(--bg-2)', borderRadius:'var(--radius)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <div>
+              <div style={{fontSize:11, color:'var(--text-1)'}}>{s.label}</div>
+              <div style={{fontSize:10, color:s.present?'var(--text-3)':'var(--text-4)'}} className="mono">
+                {s.present ? fmtBytes(s.bytes) : '尚無資料'}
+              </div>
+            </div>
+            <span className="dot" style={{width:6, height:6, borderRadius:'50%', background: s.present?'var(--pos)':'var(--text-4)', display:'inline-block'}}/>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+        <input ref={fileRef} type="file" accept="application/json,.json" style={{display:'none'}}
+               onChange={(e) => { const f = e.target.files?.[0]; if (f) importBackup(f); e.target.value = ''; }}/>
+        <button className="btn" onClick={exportBackup}><Icon name="download" size={13}/>匯出備份 JSON</button>
+        <button className="btn" onClick={() => fileRef.current?.click()}><Icon name="upload" size={13}/>從備份還原</button>
+        <div style={{flex:1}}/>
+        <button className="btn" onClick={clearAll} style={{color:'var(--neg)'}}><Icon name="trash" size={13}/>清除所有本地資料</button>
+      </div>
+    </div>
   );
 }
 
