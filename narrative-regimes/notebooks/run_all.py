@@ -23,6 +23,7 @@ sys.path.insert(0, ROOT)
 from src.simulator import simulate_world, simulate_narrative_signal, ASSET_NAMES, REGIME_NAMES
 from src.regime_filter import FilterConfig, run_filter
 from src.allocator import AllocConfig, allocate_from_posterior
+from src.allocator_v2 import AllocConfigV2, allocate_v2
 from src.backtest import run_backtest
 from src.baselines import equal_weight, sixty_forty, risk_parity, rolling_mean_variance
 
@@ -48,6 +49,36 @@ def one_path(seed, T, snr, tc_bps, gamma, use_narrative, narrative_weight=1.0):
     return rets, reg, signals, fres, W
 
 
+def _load_best_config_v2():
+    """Load iterated best config from Workflow A. Returns (AllocConfigV2, name)."""
+    path = os.path.join(TAB_DIR, "best_config.json")
+    with open(path) as f:
+        bc = json.load(f)
+    cfg = AllocConfigV2(**bc["cfg"])
+    return cfg, bc.get("name", "iterated")
+
+
+def _sixty_forty_vector(n_assets: int = 7) -> np.ndarray:
+    w = np.zeros(n_assets)
+    for i in (0, 1, 2, 6):
+        w[i] = 0.60 / 4
+    for i in (3, 4):
+        w[i] = 0.40 / 2
+    return w
+
+
+def one_path_v2(seed, T, snr, tc_bps, gamma, cfg_v2):
+    """Same pipeline as one_path() but uses allocator_v2.allocate_v2."""
+    rets, reg = simulate_world(T=T, seed=seed)
+    signals = simulate_narrative_signal(reg, snr=snr, seed=seed + 10_000)
+    fcfg = FilterConfig(use_narrative=True, narrative_weight=1.0)
+    fres = run_filter(rets, signals, fcfg)
+    W = allocate_v2(fres, rets, cfg_v2,
+                    prior_baseline=_sixty_forty_vector(rets.shape[1]),
+                    seed=seed)
+    return rets, reg, signals, fres, W
+
+
 def classification_accuracy(post_df, reg_true):
     pred = np.argmax(post_df.values, axis=1)
     mask = ~np.isnan(post_df.values[:, 0])
@@ -69,12 +100,15 @@ def summarize(res_list, name):
 def experiment_main(n_paths=30, T=360, snr=1.0, tc_bps=10.0, gamma=5.0):
     strategies = {
         "NarrativeRegimes": [],
+        "NarrativeRegimesV2": [],
         "RegimeOnly": [],
         "EqualWeight": [],
         "SixtyForty": [],
         "RiskParity": [],
         "RollingMV": [],
+        "MomentMix": [],
     }
+    cfg_v2, _ = _load_best_config_v2()
     acc_narr, acc_noreg = [], []
     for i in range(n_paths):
         seed = 100 + i
@@ -83,6 +117,11 @@ def experiment_main(n_paths=30, T=360, snr=1.0, tc_bps=10.0, gamma=5.0):
             run_backtest(rets, W_our, gamma, tc_bps)
         )
         acc_narr.append(classification_accuracy(fres.posterior, reg))
+
+        _, _, _, _, W_v2 = one_path_v2(seed, T, snr, tc_bps, gamma, cfg_v2)
+        strategies["NarrativeRegimesV2"].append(
+            run_backtest(rets, W_v2, gamma, tc_bps)
+        )
 
         _, _, _, fres2, W_our2 = one_path(seed, T, snr, tc_bps, gamma, False)
         strategies["RegimeOnly"].append(run_backtest(rets, W_our2, gamma, tc_bps))
@@ -96,6 +135,11 @@ def experiment_main(n_paths=30, T=360, snr=1.0, tc_bps=10.0, gamma=5.0):
             run_backtest(rets, risk_parity(rets), gamma, tc_bps))
         strategies["RollingMV"].append(
             run_backtest(rets, rolling_mean_variance(rets, risk_aversion=gamma), gamma, tc_bps))
+
+        acfg_mm = AllocConfig(risk_aversion=gamma, long_only=True, max_weight=0.60, tc_bps=tc_bps)
+        W_mm = allocate_from_posterior(fres.posterior, fres.mu_k_hist, fres.cov_k_hist,
+                                       acfg_mm, mode="moment_mix")
+        strategies["MomentMix"].append(run_backtest(rets, W_mm, gamma, tc_bps))
 
     rows = [summarize(v, k) for k, v in strategies.items()]
     out_df = pd.DataFrame(rows)
@@ -178,9 +222,9 @@ def experiment_gamma(n_paths=20, T=360, snr=1.0, tc_bps=10.0, gammas=(2, 5, 10))
 # ---------------------------------------------------------------------------
 def plot_equity_paths(strategies, path=os.path.join(FIG_DIR, "fig_equity_paths.pdf")):
     fig, ax = plt.subplots(figsize=(6.5, 3.8))
-    colors = {"NarrativeRegimes": "C0", "SixtyForty": "C1",
-              "RiskParity": "C2", "EqualWeight": "C3",
-              "RollingMV": "C4", "RegimeOnly": "C5"}
+    colors = {"NarrativeRegimes": "C0", "NarrativeRegimesV2": "C6",
+              "SixtyForty": "C1", "RiskParity": "C2",
+              "EqualWeight": "C3", "RollingMV": "C4", "RegimeOnly": "C5"}
     for name, runs in strategies.items():
         mean_eq = np.mean([r.equity.values for r in runs], axis=0)
         idx = runs[0].equity.index
