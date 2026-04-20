@@ -70,6 +70,90 @@ function Holdings() {
     RT.resetHoldings();
   };
 
+  const fileInputRef = React.useRef(null);
+
+  const exportCSV = () => {
+    const header = ['symbol','name','type','sector','shares','cost','price'];
+    const rows = userHoldings.map(h => [
+      h.symbol, h.name, h.type, h.sector,
+      h.shares ?? '', h.cost ?? '', h.price ?? '',
+    ]);
+    const esc = (v) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const csv = [header, ...rows].map(r => r.map(esc).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `holdings-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const parseCSV = (text) => {
+    const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/).filter(l => l.trim());
+    if (!lines.length) return [];
+    const parseLine = (line) => {
+      const out = []; let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inQ) {
+          if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+          else if (c === '"') inQ = false;
+          else cur += c;
+        } else {
+          if (c === '"') inQ = true;
+          else if (c === ',') { out.push(cur); cur = ''; }
+          else cur += c;
+        }
+      }
+      out.push(cur);
+      return out;
+    };
+    const header = parseLine(lines[0]).map(h => h.trim().toLowerCase());
+    return lines.slice(1).map(line => {
+      const cols = parseLine(line);
+      const o = {};
+      header.forEach((h, i) => { o[h] = (cols[i] ?? '').trim(); });
+      return o;
+    });
+  };
+
+  const importCSV = (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCSV(String(reader.result || ''));
+        if (!rows.length) { alert('CSV 為空或無法解析。'); return; }
+        const imported = rows
+          .filter(r => r.symbol)
+          .map((r, i) => {
+            const sym = r.symbol.toUpperCase();
+            const guess = guessSectorType(sym);
+            return {
+              id: 'i' + Date.now().toString(36) + i,
+              symbol: sym,
+              name:   r.name   || sym,
+              type:   r.type   || guess.type,
+              sector: r.sector || guess.sector,
+              shares: Number(r.shares) || 0,
+              cost:   Number(r.cost)   || 0,
+              price:  Number(r.price)  || Number(r.cost) || 0,
+              weight: 0,
+            };
+          });
+        if (!imported.length) { alert('沒有可匯入的列(需要至少 symbol 欄位)。'); return; }
+        const replace = confirm(`將匯入 ${imported.length} 筆。按「確定」覆蓋現有持股,「取消」合併新增。`);
+        setHoldings(replace ? imported : [...userHoldings, ...imported]);
+      } catch (e) {
+        alert('CSV 解析失敗: ' + e.message);
+      }
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
   const statusLabel = {
     idle: '待連線', loading: '連線中', live: `即時 · ${liveCount}/${holdings.length} 檔`, error: '離線 · 使用快照',
   }[status];
@@ -89,8 +173,10 @@ function Holdings() {
         <div className="actions">
           <button className="btn" onClick={refresh} title="重新抓取即時行情"><Icon name="refresh" size={14}/>重新整理</button>
           <button className="btn" onClick={resetToSample} title="恢復示範持股">恢復示範</button>
-          <button className="btn"><Icon name="upload" size={14}/>從券商匯入</button>
-          <button className="btn"><Icon name="download" size={14}/>CSV / Excel</button>
+          <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{display:'none'}}
+                 onChange={(e) => { const f = e.target.files?.[0]; if (f) importCSV(f); e.target.value = ''; }}/>
+          <button className="btn" onClick={() => fileInputRef.current?.click()} title="匯入 CSV (欄位: symbol,name,type,sector,shares,cost,price)"><Icon name="upload" size={14}/>匯入 CSV</button>
+          <button className="btn" onClick={exportCSV} title="匯出為 CSV"><Icon name="download" size={14}/>匯出 CSV</button>
           <button className="btn primary" onClick={()=>setShowAdd(true)}><Icon name="plus" size={14}/>新增持股</button>
         </div>
       </div>
