@@ -2,10 +2,11 @@
 function Advisor({ risk }) {
   const [selectedSlice, setSelectedSlice] = React.useState('債券');
   const [timeframe, setTimeframe] = React.useState('3M');
+  const [excluded, setExcluded] = React.useState({});
 
-  const [userHoldings] = useHoldings();
+  const [userHoldings, setHoldings] = useHoldings();
   const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
-  const { quotes, status } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const { quotes, status, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const usdTwd = quotes['TWD=X']?.price;
 
@@ -13,11 +14,51 @@ function Advisor({ risk }) {
   const selected = target.find(a => a.name === selectedSlice) || target[0];
   const diff = selected.target - selected.current;
 
-  const livePlan = status === 'live' ? RT.generateRebalancePlan(holdings, target) : DATA.rebalancePlan;
+  const livePlanAll = status === 'live' ? RT.generateRebalancePlan(holdings, target) : DATA.rebalancePlan;
+  const livePlan    = livePlanAll.filter(p => !excluded[p.symbol]);
   const totalOut = livePlan.filter(p => p.action === 'sell').reduce((s,p) => s + p.amount, 0);
   const totalIn  = livePlan.filter(p => p.action === 'buy') .reduce((s,p) => s + p.amount, 0);
   const netFlow  = totalIn - totalOut;
   const fee = Math.round((totalIn + totalOut) * 0.001425);
+
+  const applyPlan = () => {
+    if (livePlan.length === 0) { alert('沒有要套用的調整項目。'); return; }
+    if (!confirm(`將套用 ${livePlan.length} 項調整到持股。確定?`)) return;
+    const bySymbol = Object.fromEntries(userHoldings.map(h => [h.symbol, h]));
+    livePlan.forEach(p => {
+      const cur = bySymbol[p.symbol];
+      const delta = p.action === 'buy' ? p.shares : -p.shares;
+      if (cur) {
+        const next = Math.max(0, (cur.shares || 0) + delta);
+        bySymbol[p.symbol] = { ...cur, shares: next };
+      } else if (p.action === 'buy') {
+        const unit = p.amount && p.shares ? p.amount / p.shares : 0;
+        bySymbol[p.symbol] = {
+          id: 'p' + Date.now().toString(36) + p.symbol,
+          symbol: p.symbol, name: p.name,
+          type: '其他', sector: '其他',
+          shares: p.shares, price: unit, cost: unit, weight: 0,
+        };
+      }
+    });
+    setHoldings(Object.values(bySymbol).filter(h => h.shares > 0 || h.symbol === 'CASH'));
+    setExcluded({});
+    alert('再平衡已套用。');
+  };
+
+  const exportPlan = () => {
+    if (livePlanAll.length === 0) { alert('目前沒有可匯出的調整項目。'); return; }
+    const header = ['symbol','name','action','shares','amount_twd','weight_change_pp','reason'];
+    const rows = livePlanAll.map(p => [p.symbol, p.name, p.action, p.shares, p.amount, p.pct, p.reason]);
+    const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const csv = [header, ...rows].map(r => r.map(esc).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type:'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `rebalance-plan-${new Date().toISOString().slice(0,10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   return (
     <>
@@ -27,8 +68,9 @@ function Advisor({ risk }) {
           <p>基於你目前的 {holdings.length} 檔持股、風險偏好「穩健型」、以及 142 筆公開資料來源,AI 生成以下長期配置建議。</p>
         </div>
         <div className="actions">
-          <button className="btn"><Icon name="refresh" size={14}/>重新推論</button>
-          <button className="btn primary"><Icon name="lightning" size={14}/>一鍵套用再平衡</button>
+          <button className="btn" onClick={refresh} title="重新抓取即時行情並重算建議"><Icon name="refresh" size={14}/>重新推論</button>
+          <button className="btn" onClick={exportPlan} title="匯出建議為 CSV"><Icon name="download" size={14}/>匯出方案</button>
+          <button className="btn primary" onClick={applyPlan} title="依建議更新持股股數"><Icon name="lightning" size={14}/>一鍵套用再平衡</button>
         </div>
       </div>
 
@@ -210,8 +252,7 @@ function Advisor({ risk }) {
                   <td style={{fontSize:12, color:'var(--text-2)'}}>{p.reason}</td>
                   <td>
                     <div style={{display:'flex', gap:4, justifyContent:'flex-end'}}>
-                      <button className="icon-btn" style={{width:26, height:26}}><Icon name="settings" size={11}/></button>
-                      <button className="icon-btn" style={{width:26, height:26}}><Icon name="close" size={11}/></button>
+                      <button className="icon-btn" style={{width:26, height:26}} title="排除此項" onClick={() => setExcluded({...excluded, [p.symbol]: true})}><Icon name="close" size={11}/></button>
                     </div>
                   </td>
                 </tr>
@@ -239,7 +280,7 @@ function Advisor({ risk }) {
               <div className="mono" style={{fontSize:16, color:'var(--text-2)'}}>{fmt.tw(fee)}</div>
             </div>
           </div>
-          <button className="btn primary"><Icon name="check" size={13}/>套用此方案</button>
+          <button className="btn primary" onClick={applyPlan}><Icon name="check" size={13}/>套用此方案</button>
         </div>
       </div>
 
