@@ -49,26 +49,92 @@
     throw lastErr || new Error('All proxies failed');
   }
 
-  // Yahoo chart endpoint returns last close, previous close and meta
+  // Yahoo chart endpoint returns last close, previous close and meta.
+  // For Taiwan tickers (.TW) that Yahoo doesn't index (e.g. some new bond ETFs),
+  // falls back to TWSE OpenAPI (end-of-day data, real official source).
   async function fetchYahooQuote(ticker) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
-    const json = await fetchWithProxy(url);
-    const r = json?.chart?.result?.[0];
-    if (!r) throw new Error('No data for ' + ticker);
-    const m = r.meta || {};
-    const price = m.regularMarketPrice ?? r.indicators?.quote?.[0]?.close?.slice(-1)?.[0];
-    const prev  = m.chartPreviousClose ?? m.previousClose;
-    const chg   = (price != null && prev != null) ? price - prev : 0;
-    const chgPct= (price != null && prev) ? (chg / prev) * 100 : 0;
+    try {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
+      const json = await fetchWithProxy(url);
+      const r = json?.chart?.result?.[0];
+      if (!r) throw new Error('No data for ' + ticker);
+      const m = r.meta || {};
+      const price = m.regularMarketPrice ?? r.indicators?.quote?.[0]?.close?.slice(-1)?.[0];
+      if (price == null) throw new Error('No price for ' + ticker);
+      const prev  = m.chartPreviousClose ?? m.previousClose;
+      const chg   = (price != null && prev != null) ? price - prev : 0;
+      const chgPct= (price != null && prev) ? (chg / prev) * 100 : 0;
+      return {
+        ticker,
+        price,
+        previousClose: prev,
+        change: chg,
+        changePct: chgPct,
+        currency: m.currency,
+        marketState: m.marketState,
+        time: m.regularMarketTime ? new Date(m.regularMarketTime * 1000) : new Date(),
+      };
+    } catch (yahooErr) {
+      const m = ticker.match(/^(\d{4,6}[A-Z]?)\.TW$/);
+      if (m) {
+        try { return await fetchTwseQuote(m[1]); } catch {}
+      }
+      throw yahooErr;
+    }
+  }
+
+  // ── TWSE OpenAPI fallback ────────────────────────────────────────────────
+  // One call returns ~1000+ TWSE-listed stocks/ETFs with closing price + change.
+  // Cached 5 min so refreshing 60s doesn't hammer it.
+  const TWSE_URL = 'https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL';
+  const TWSE_TTL = 5 * 60 * 1000;
+  let _twseCache = null;
+  let _twseTime = 0;
+  let _twseInflight = null;
+
+  async function fetchTwseAll() {
+    const now = Date.now();
+    if (_twseCache && now - _twseTime < TWSE_TTL) return _twseCache;
+    if (_twseInflight) return _twseInflight;
+    _twseInflight = (async () => {
+      let data;
+      try {
+        const res = await fetch(TWSE_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error('TWSE HTTP ' + res.status);
+        data = await res.json();
+      } catch {
+        data = await fetchWithProxy(TWSE_URL);
+      }
+      const map = {};
+      if (Array.isArray(data)) {
+        for (const r of data) if (r && r.Code) map[r.Code] = r;
+      }
+      _twseCache = map;
+      _twseTime = Date.now();
+      _twseInflight = null;
+      return map;
+    })();
+    return _twseInflight;
+  }
+
+  async function fetchTwseQuote(code) {
+    const all = await fetchTwseAll();
+    const r = all[code];
+    if (!r) throw new Error('TWSE: ' + code + ' not listed');
+    const price = parseFloat(r.ClosingPrice);
+    if (!price || isNaN(price)) throw new Error('TWSE: invalid price for ' + code);
+    // Change can be "0.50" / "+0.50" / "-0.50" / "X0.50" (ex-rights marker)
+    const change = parseFloat(String(r.Change || '0').replace(/^[X]/i, '')) || 0;
+    const prev = price - change;
     return {
-      ticker,
+      ticker: code + '.TW',
       price,
       previousClose: prev,
-      change: chg,
-      changePct: chgPct,
-      currency: m.currency,
-      marketState: m.marketState,
-      time: m.regularMarketTime ? new Date(m.regularMarketTime * 1000) : new Date(),
+      change,
+      changePct: prev ? (change / prev) * 100 : 0,
+      currency: 'TWD',
+      marketState: 'TWSE',
+      time: new Date(),
     };
   }
 
@@ -809,6 +875,8 @@
     YAHOO_MAP,
     INDEX_MAP,
     fetchYahooQuote,
+    fetchTwseAll,
+    fetchTwseQuote,
     fetchMany,
     fetchYahooHistory,
     fetchHistoryMany,

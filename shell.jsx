@@ -1,7 +1,7 @@
 // Sidebar nav + topbar
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
 const APP_BUILD_DATE = '2026-04-20';
 window.APP_VERSION = APP_VERSION;
 window.APP_BUILD_DATE = APP_BUILD_DATE;
