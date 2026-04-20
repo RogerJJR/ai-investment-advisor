@@ -1,5 +1,6 @@
 // AI Advisor page - deep
 const REBALANCE_HISTORY_KEY = 'ai-advisor-rebalance-history-v1';
+const REGIME_OVERRIDE_KEY   = 'ai-advisor-regime-override-v1';
 
 function Advisor({ risk }) {
   const [selectedSlice, setSelectedSlice] = React.useState('債券');
@@ -8,14 +9,44 @@ function Advisor({ risk }) {
   const [rebalanceHistory, setRebalanceHistory] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem(REBALANCE_HISTORY_KEY) || '[]'); } catch { return []; }
   });
+  const [regimeOverride, setRegimeOverrideState] = React.useState(() => {
+    try { return localStorage.getItem(REGIME_OVERRIDE_KEY) || 'auto'; } catch { return 'auto'; }
+  });
 
   const [userHoldings, setHoldings] = useHoldings();
-  const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
+  const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X', '^GSPC', '^VIX'])];
   const { quotes, status, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const usdTwd = quotes['TWD=X']?.price;
+  const vix    = quotes['^VIX']?.price;
 
-  const riskTargets = React.useMemo(() => RT.targetsForRisk(DATA.allocation, risk), [risk]);
+  // Trailing S&P 500 returns (for regime filter's return likelihood)
+  const { history: gspcHistory } = useLiveHistory(['^GSPC'], { range: '1y', interval: '1mo' });
+  const spyPoints = gspcHistory['^GSPC'] || [];
+  const spyLast = spyPoints.length ? spyPoints[spyPoints.length - 1].close : null;
+  const spy1Mo  = spyPoints.length >= 2 ? spyPoints[spyPoints.length - 2].close : null;
+  const spy3Mo  = spyPoints.length >= 4 ? spyPoints[spyPoints.length - 4].close : null;
+  const spyReturn1M = (spyLast && spy1Mo) ? (spyLast / spy1Mo - 1) : null;
+  const spyReturn3M = (spyLast && spy3Mo) ? (spyLast / spy3Mo - 1) : null;
+
+  const regime = React.useMemo(() => RT.NarrativeRegimes.detectRegime({
+    spyReturn1M, spyReturn3M, vix,
+    override: regimeOverride === 'auto' ? undefined : regimeOverride,
+  }), [spyReturn1M, spyReturn3M, vix, regimeOverride]);
+
+  const setRegimeOverride = (v) => {
+    setRegimeOverrideState(v);
+    try {
+      if (v === 'auto') localStorage.removeItem(REGIME_OVERRIDE_KEY);
+      else              localStorage.setItem(REGIME_OVERRIDE_KEY, v);
+    } catch {}
+  };
+
+  // Paper-based targets: regime-policy-mix allocator (Chuang 2026 §3.3)
+  const riskTargets = React.useMemo(
+    () => RT.NarrativeRegimes.targetsForPosterior(DATA.allocation, regime, risk),
+    [regime, risk]
+  );
   const target = RT.computeLiveAllocation(holdings, riskTargets, usdTwd);
   const selected = target.find(a => a.name === selectedSlice) || target[0];
   const diff = selected.target - selected.current;
@@ -60,6 +91,10 @@ function Advisor({ risk }) {
       timeframe,
       slices: target.map(a => ({ name: a.name, from: +a.current.toFixed(1), to: a.target })),
       topActions: livePlan.slice(0, 3).map(p => ({ symbol: p.symbol, action: p.action, amount: p.amount })),
+      regimeId: regime.dominantId,
+      regimeName: regime.dominant?.name,
+      regimeConfidence: +(regime.confidence * 100).toFixed(1),
+      regimePosterior: regime.posterior.map(p => +(p * 100).toFixed(1)),
     };
     const nextHistory = [snapshot, ...rebalanceHistory].slice(0, 20);
     setRebalanceHistory(nextHistory);
@@ -105,50 +140,173 @@ function Advisor({ risk }) {
       </div>
 
       {/* Hero - AI Recommendation */}
-      <div className="card" style={{background:'linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%)', padding:24, marginBottom:'var(--density-gap)', borderLeft:'2px solid var(--accent)'}}>
-        <div style={{display:'grid', gridTemplateColumns:'auto 1fr auto', gap:28, alignItems:'center'}}>
-          <div style={{position:'relative'}}>
-            <Donut slices={target.map(a => ({ value: a.target, color: a.color }))} size={160} thick={22}/>
-            <div style={{position:'absolute', inset:0, display:'grid', placeItems:'center', textAlign:'center'}}>
+      {(() => {
+        const stockPct = target.filter(a => ['美股','台股','全球'].includes(a.name)).reduce((s,a) => s + a.target, 0);
+        const bondPct  = target.filter(a => a.name === '債券').reduce((s,a) => s + a.target, 0);
+        const otherPct = 100 - stockPct - bondPct;
+        const ratio = `${Math.round(stockPct)}/${Math.round(bondPct)}/${Math.round(otherPct)}`;
+        // Expected ann. return & vol from the regime-policy-mix at this posterior
+        const gamma = RT.NarrativeRegimes.GAMMA[risk] || 5;
+        const policies = RT.NarrativeRegimes.regimePolicies(gamma);
+        let expRet = 0, expVar = 0;
+        RT.NarrativeRegimes.REGIMES.forEach((r, k) => {
+          const p = regime.posterior[k];
+          RT.NarrativeRegimes.ASSET_ORDER.forEach(a => {
+            const w = policies[r.id][a];
+            expRet += p * w * r.mu[a];
+            expVar += p * w * w * (r.sigma[a] * r.sigma[a]);
+          });
+        });
+        const expVol = Math.sqrt(expVar);
+        return (
+          <div className="card" style={{background:'linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%)', padding:24, marginBottom:'var(--density-gap)', borderLeft:`2px solid ${regime.dominant?.color || 'var(--accent)'}`}}>
+            <div style={{display:'grid', gridTemplateColumns:'auto 1fr auto', gap:28, alignItems:'center'}}>
+              <div style={{position:'relative'}}>
+                <Donut slices={target.map(a => ({ value: a.target, color: a.color }))} size={160} thick={22}/>
+                <div style={{position:'absolute', inset:0, display:'grid', placeItems:'center', textAlign:'center'}}>
+                  <div>
+                    <div className="mono-label">建議</div>
+                    <div style={{fontSize:22, fontFamily:'var(--font-mono)', color:'var(--text-0)'}}>{ratio}</div>
+                    <div style={{fontSize:10, color:'var(--text-3)'}}>股 / 債 / 另類</div>
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <div className="mono-label">建議</div>
-                <div style={{fontSize:22, fontFamily:'var(--font-mono)', color:'var(--text-0)'}}>6:2:2</div>
-                <div style={{fontSize:10, color:'var(--text-3)'}}>股 / 債 / 另類</div>
+                <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8, flexWrap:'wrap'}}>
+                  <span className="chip accent"><Icon name="sparkles" size={10}/>AI 結論</span>
+                  <span className="chip" style={{color: regime.dominant?.color, borderColor: regime.dominant?.color}}>
+                    <span className="dot" style={{background: regime.dominant?.color}}/>
+                    Regime: {regime.dominant?.name} · {Math.round(regime.confidence * 100)}%
+                  </span>
+                  <span style={{fontSize:11, color:'var(--text-3)'}}>Chuang (2026) Narrative Regimes v0.2.0</span>
+                </div>
+                <h2 style={{margin:'0 0 10px', fontSize:20, fontWeight:500, letterSpacing:'-0.01em', color:'var(--text-0)'}}>
+                  依 <span style={{color: regime.dominant?.color}}>{regime.dominant?.name}</span> regime(後驗 {Math.round(regime.confidence * 100)}%),建議配置為 <span className="mono" style={{color:'var(--accent)'}}>{ratio}</span>(股/債/另類)
+                </h2>
+                <p style={{margin:0, fontSize:13, color:'var(--text-2)', lineHeight:1.7, maxWidth:720}}>
+                  {regime.dominant?.summary} 以風險偏好 γ={gamma} 套用論文 §3.3 regime-policy-mix allocator(長倉、單資產 ≤ {Math.round(RT.NarrativeRegimes.CAP*100)}%、μ/σ 來自 Appendix C),經三個 regime 後驗加權得到上列目標權重。
+                </p>
+                <div style={{display:'flex', gap:10, marginTop:14, alignItems:'center', flexWrap:'wrap'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <span className="mono-label">Regime 信心</span>
+                    <ConfidenceMeter value={Math.round(regime.confidence * 100)}/>
+                    <span className="mono" style={{fontSize:12, color:'var(--text-0)'}}>{Math.round(regime.confidence * 100)}%</span>
+                  </div>
+                  <span style={{width:1, height:14, background:'var(--line)'}}/>
+                  <span style={{fontSize:11, color:'var(--text-3)'}}>預估年化報酬 <b className="mono" style={{color:'var(--text-0)'}}>{expRet.toFixed(1)}%</b></span>
+                  <span style={{fontSize:11, color:'var(--text-3)'}}>標準差 <b className="mono" style={{color:'var(--text-0)'}}>{expVol.toFixed(1)}%</b></span>
+                  <span style={{fontSize:11, color:'var(--text-3)'}}>SNR β=<b className="mono" style={{color:'var(--text-0)'}}>{RT.NarrativeRegimes.BETA.toFixed(1)}</b></span>
+                </div>
+              </div>
+
+              <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                <button className="btn primary" style={{width:160}} onClick={applyPlan}><Icon name="check" size={13}/>採納建議</button>
+                <button className="btn" style={{width:160}} onClick={exportPlan}>匯出 CSV</button>
+                <button className="btn ghost" style={{width:160, color:'var(--text-3)'}} onClick={refresh}>重新推論</button>
               </div>
             </div>
           </div>
+        );
+      })()}
 
-          <div>
-            <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
-              <span className="chip accent"><Icon name="sparkles" size={10}/>AI 結論</span>
-              <span style={{fontSize:11, color:'var(--text-3)'}}>模型 v2.4 · 26 秒前完成推論</span>
-            </div>
-            <h2 style={{margin:'0 0 10px', fontSize:20, fontWeight:500, letterSpacing:'-0.01em', color:'var(--text-0)'}}>
-              建議分 3 個月,將配置由 <span className="mono" style={{color:'var(--warn)'}}>65/26/9</span> 漸進調整至 <span className="mono" style={{color:'var(--accent)'}}>60/28/12</span>
-            </h2>
-            <p style={{margin:0, fontSize:13, color:'var(--text-2)', lineHeight:1.7, maxWidth:720}}>
-              在 15 年投資期限與穩健風險偏好下,現階段股票占比略高於合宜區間上緣。同時,美 10Y 殖利率已回升至 4.18%,提供較佳的長期債券進場位置。建議分批將部分台股與美股轉入 BND、IEF、以及全球 ETF,降低集中度。
-            </p>
-            <div style={{display:'flex', gap:10, marginTop:14, alignItems:'center'}}>
+      {/* Narrative Regime card */}
+      {(() => {
+        const REGS = RT.NarrativeRegimes.REGIMES;
+        const gamma = RT.NarrativeRegimes.GAMMA[risk] || 5;
+        const policies = RT.NarrativeRegimes.regimePolicies(gamma);
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)', borderLeft:`2px solid ${regime.dominant?.color || 'var(--accent)'}`}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">當前 Narrative Regime · <span style={{color: regime.dominant?.color}}>{regime.dominant?.name}</span></div>
+                <div className="card-sub">
+                  依 Chuang (2026) §3.2 線上 Bayesian 濾波 · 先驗 π = Markov 穩態 · likelihood = 美股 1M Gaussian × narrative(VIX + 3M 趨勢)
+                </div>
+              </div>
               <div style={{display:'flex', alignItems:'center', gap:8}}>
-                <span className="mono-label">整體信心</span>
-                <ConfidenceMeter value={78}/>
-                <span className="mono" style={{fontSize:12, color:'var(--text-0)'}}>78%</span>
+                <span className="mono-label" style={{margin:0}}>手動覆寫</span>
+                <select
+                  value={regimeOverride}
+                  onChange={(e) => setRegimeOverride(e.target.value)}
+                  style={{background:'var(--bg-2)', color:'var(--text-0)', border:'1px solid var(--line)', borderRadius:'var(--radius)', padding:'4px 8px', fontSize:12}}
+                >
+                  <option value="auto">自動偵測</option>
+                  {REGS.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                {regime.overridden && <span className="chip" style={{color:'var(--warn)', borderColor:'var(--warn)'}}>已覆寫</span>}
               </div>
-              <span style={{width:1, height:14, background:'var(--line)'}}/>
-              <span style={{fontSize:11, color:'var(--text-3)'}}>預估年化報酬 <b className="mono" style={{color:'var(--text-0)'}}>7.2%</b></span>
-              <span style={{fontSize:11, color:'var(--text-3)'}}>標準差 <b className="mono" style={{color:'var(--text-0)'}}>10.4%</b></span>
-              <span style={{fontSize:11, color:'var(--text-3)'}}>最大回撤 <b className="mono" style={{color:'var(--text-0)'}}>-18%</b></span>
+            </div>
+
+            {/* Posterior distribution bar */}
+            <div style={{marginBottom:14}}>
+              <div className="mono-label" style={{marginBottom:6}}>Regime 後驗分布</div>
+              <div style={{display:'flex', height:24, borderRadius:'var(--radius)', overflow:'hidden', border:'1px solid var(--line)'}}>
+                {REGS.map((r, k) => {
+                  const p = regime.posterior[k];
+                  if (p < 0.001) return null;
+                  return (
+                    <div key={r.id} title={`${r.name} ${(p*100).toFixed(1)}%`}
+                         style={{flex: p, background: r.color, display:'grid', placeItems:'center', color:'#000', fontSize:10, fontWeight:600}}>
+                      {p > 0.08 && <span>{r.name} {Math.round(p*100)}%</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{display:'grid', gridTemplateColumns:'1.2fr 1fr', gap:14}}>
+              {/* Drivers */}
+              <div>
+                <div className="mono-label" style={{marginBottom:6}}>驅動因子 (對主導 regime 之貢獻)</div>
+                <div style={{display:'flex', flexDirection:'column', gap:4}}>
+                  {regime.drivers.map((d, i) => (
+                    <div key={i} style={{display:'grid', gridTemplateColumns:'100px 1fr 80px 60px', gap:8, alignItems:'center', padding:'6px 8px', background:'var(--bg-2)', borderRadius:4, fontSize:11}}>
+                      <span style={{color:'var(--text-1)'}}>{d.factor}</span>
+                      <div style={{height:4, background:'var(--bg-3)', borderRadius:999}}>
+                        <div style={{height:'100%', width:`${Math.min(100, d.contribution*100)}%`, background: regime.dominant?.color, borderRadius:999}}/>
+                      </div>
+                      <span className="mono" style={{color:'var(--text-0)', textAlign:'right'}}>{d.value}</span>
+                      <span className="mono" style={{color:'var(--text-3)', textAlign:'right', fontSize:10}}>{(d.contribution*100).toFixed(0)}%</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Per-regime policy (γ-adjusted MV weights, 3 mini bars) */}
+              <div>
+                <div className="mono-label" style={{marginBottom:6}}>各 regime 之最適配置 (γ={gamma})</div>
+                <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                  {REGS.map(r => (
+                    <div key={r.id} style={{padding:'6px 8px', background:'var(--bg-2)', borderRadius:4, fontSize:10}}>
+                      <div style={{display:'flex', justifyContent:'space-between', marginBottom:3}}>
+                        <span style={{color: r.color, fontWeight:500, fontSize:11}}>{r.name}</span>
+                        <span className="mono" style={{color:'var(--text-3)'}}>後驗 {Math.round(regime.posterior[REGS.indexOf(r)] * 100)}%</span>
+                      </div>
+                      <div style={{display:'flex', height:8, borderRadius:2, overflow:'hidden', background:'var(--bg-3)'}}>
+                        {RT.NarrativeRegimes.ASSET_ORDER.map(a => {
+                          const w = policies[r.id][a];
+                          const color = DATA.allocation.find(x => x.name === a)?.color || 'var(--text-3)';
+                          return w > 0.001 ? <div key={a} title={`${a} ${(w*100).toFixed(1)}%`} style={{flex:w, background:color}}/> : null;
+                        })}
+                      </div>
+                      <div style={{display:'flex', justifyContent:'space-between', marginTop:2, color:'var(--text-3)', fontSize:9}}>
+                        {RT.NarrativeRegimes.ASSET_ORDER.filter(a => policies[r.id][a] > 0.02).map(a => (
+                          <span key={a}>{a} {Math.round(policies[r.id][a]*100)}%</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div style={{fontSize:10.5, color:'var(--text-3)', marginTop:10, lineHeight:1.6, padding:'8px 10px', background:'var(--bg-2)', borderRadius:'var(--radius)'}}>
+              {regime.dominant?.summary} · 論文 SNR 閾值 β*≈1,目前設定 β={RT.NarrativeRegimes.BETA.toFixed(1)};風險偏好「{ {conservative:'保守',moderate:'穩健',aggressive:'積極'}[risk] || risk }」對應 CRRA γ={gamma}。
             </div>
           </div>
-
-          <div style={{display:'flex', flexDirection:'column', gap:6}}>
-            <button className="btn primary" style={{width:160}}><Icon name="check" size={13}/>採納建議</button>
-            <button className="btn" style={{width:160}}>自行微調...</button>
-            <button className="btn ghost" style={{width:160, color:'var(--text-3)'}}>暫不處理</button>
-          </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Cash buffer recommendation */}
       {(() => {
@@ -357,12 +515,22 @@ function Advisor({ risk }) {
           </div>
 
           <div style={{display:'flex', flexDirection:'column', gap:0}}>
-            {[
-              { step:'觀察', text:'你目前債券配置為 13.0%,低於長期穩健型目標 20%,差距 -7.0pp。', sources:['持股', 'DGBAS'] },
-              { step:'資料', text:'美 10Y 殖利率近 30 天 +22bps 至 4.18%,BND/IEF 價格相對 2024 年高點回落 4.6%。', sources:['CBOE','Fed'] },
-              { step:'因子', text:'利率上行 → 債券殖利率上升 → 長期進場風險報酬比提升。你的投資期限 15 年,足以承受短期波動。', sources:['模型'] },
-              { step:'結論', text:'建議分 3 次(12 週)加碼 BND (60%) + IEF (40%),總額約 NT$186,000。', sources:[] },
-            ].map((r, i, arr) => (
+            {(() => {
+              const sel = target.find(a => a.name === selectedSlice) || target[0];
+              const d = sel.target - sel.current;
+              const gamma = RT.NarrativeRegimes.GAMMA[risk] || 5;
+              const policies = RT.NarrativeRegimes.regimePolicies(gamma);
+              const perRegime = RT.NarrativeRegimes.REGIMES.map((r, k) => {
+                const w = (policies[r.id][sel.name] || 0) * 100;
+                return `${r.name} ${w.toFixed(0)}%(後驗 ${Math.round(regime.posterior[k]*100)}%)`;
+              }).join(' · ');
+              return [
+                { step:'偵測 Regime', text:`當前主導 regime 為「${regime.dominant?.name}」,後驗機率 ${Math.round(regime.confidence*100)}%。${regime.dominant?.summary}`, sources:['Chuang 2026 §3.2','^VIX','^GSPC'] },
+                { step:'驅動因子',     text:regime.drivers.map(x => `${x.factor} ${x.value}`).join(' · '), sources:['即時行情'] },
+                { step:`${sel.name} 之 regime 配置`, text:`依論文 §3.3 對每個 regime 解 long-only MV(γ=${gamma}, 上限 ${Math.round(RT.NarrativeRegimes.CAP*100)}%):${perRegime}。後驗加權後 ${sel.name} 目標 = ${sel.target}%。`, sources:['Appendix C','regime-policy-mix'] },
+                { step:'結論',         text: Math.abs(d) < 2 ? `${sel.name} 目前 ${sel.current.toFixed(1)}% 已貼近目標 ${sel.target}%(差 ${d.toFixed(1)}pp),維持即可。` : `${sel.name} 目前 ${sel.current.toFixed(1)}%,與目標 ${sel.target}% 差 ${d.toFixed(1)}pp,建議${d>0?'加碼':'減碼'}。`, sources:[] },
+              ];
+            })().map((r, i, arr) => (
               <div key={i} style={{display:'flex', gap:14, position:'relative', paddingBottom: i < arr.length - 1 ? 14 : 0}}>
                 <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
                   <div style={{width:24, height:24, borderRadius:'50%', background:'var(--accent-soft)', color:'var(--accent)', display:'grid', placeItems:'center', fontSize:10, fontWeight:600}}>{i+1}</div>
@@ -552,6 +720,8 @@ function Advisor({ risk }) {
               const d = new Date(s.ts);
               const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
               const riskLabel = { conservative:'保守', moderate:'穩健', aggressive:'積極' }[s.risk] || s.risk;
+              const regId = s.regimeId;
+              const regColor = { expansion:'#22c55e', contraction:'#f59e0b', stress:'#ef4444' }[regId];
               return (
                 <div key={s.id} style={{
                   display:'grid', gridTemplateColumns:'150px 80px 1fr 1fr 1fr', gap:14, alignItems:'center',
@@ -559,7 +729,10 @@ function Advisor({ risk }) {
                 }}>
                   <div>
                     <div style={{fontSize:11, color:'var(--text-3)'}}>{dateStr}</div>
-                    <div style={{fontSize:11, color:'var(--text-1)', marginTop:2}}>{riskLabel} · {s.timeframe || '3M'}</div>
+                    <div style={{fontSize:11, color:'var(--text-1)', marginTop:2, display:'flex', gap:6, alignItems:'center', flexWrap:'wrap'}}>
+                      <span>{riskLabel} · {s.timeframe || '3M'}</span>
+                      {s.regimeName && <span style={{color: regColor, fontSize:10, padding:'0 4px', border:`1px solid ${regColor}`, borderRadius:3}}>{s.regimeName} {s.regimeConfidence}%</span>}
+                    </div>
                   </div>
                   <div style={{textAlign:'center'}}>
                     <div className="mono" style={{fontSize:16, color:'var(--accent)'}}>{s.items}</div>
@@ -601,35 +774,41 @@ function Advisor({ risk }) {
         </div>
       )}
 
-      {/* Factor grid */}
+      {/* Factor grid - driven by regime filter posterior */}
       <div className="card">
         <div className="card-head">
           <div>
-            <div className="card-title">決策因子 · 權重分布</div>
-            <div className="card-sub">AI 在此次配置建議中各因子的影響力</div>
+            <div className="card-title">決策因子 · Bayesian filter 貢獻</div>
+            <div className="card-sub">Chuang (2026) Algorithm 1 · 對主導 regime ({regime.dominant?.name}) 之後驗貢獻</div>
           </div>
+          <span className="chip accent">β = {RT.NarrativeRegimes.BETA.toFixed(1)}</span>
         </div>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:14}}>
-          {[
-            { name:'總經環境', w:28, note:'利率上行、CPI 趨穩' },
-            { name:'估值水位', w:22, note:'S&P 本益比 21.4 偏高' },
-            { name:'技術面',   w:12, note:'台股 MACD 背離' },
-            { name:'集中度',   w:18, note:'台股權重 +8.6pp' },
-            { name:'情緒',     w: 6, note:'AAII 看多 28%' },
-            { name:'央行政策', w:10, note:'Fed data-dependent' },
-            { name:'相關性',   w: 4, note:'股債相關正向' },
-            { name:'其他',     w: 0, note:'—' },
-          ].map(f => (
-            <div key={f.name} style={{padding:12, border:'1px solid var(--line)', borderRadius:'var(--radius)'}}>
-              <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
-                <span style={{fontSize:12, color:'var(--text-1)'}}>{f.name}</span>
-                <span className="mono" style={{fontSize:13, color:'var(--text-0)'}}>{f.w}%</span>
-              </div>
-              <div className="bar" style={{margin:'8px 0 6px'}}><span style={{width:f.w*3+'%', background: f.w>=20?'var(--accent)':'var(--text-3)'}}/></div>
-              <div style={{fontSize:10, color:'var(--text-3)'}}>{f.note}</div>
+        {(() => {
+          const factors = regime.drivers.map(d => ({
+            name: d.factor,
+            w: Math.round(d.contribution * 100),
+            note: `${d.value} · 來源 ${d.source}`,
+          }));
+          // Pad to multiple of 4 for grid alignment
+          while (factors.length % 4 !== 0) factors.push({ name: '—', w: 0, note: '—' });
+          const maxW = Math.max(1, ...factors.map(f => f.w));
+          return (
+            <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:14}}>
+              {factors.map((f, i) => (
+                <div key={i} style={{padding:12, border:'1px solid var(--line)', borderRadius:'var(--radius)'}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
+                    <span style={{fontSize:12, color:'var(--text-1)'}}>{f.name}</span>
+                    <span className="mono" style={{fontSize:13, color:'var(--text-0)'}}>{f.w}%</span>
+                  </div>
+                  <div className="bar" style={{margin:'8px 0 6px'}}>
+                    <span style={{width:(f.w / maxW * 100)+'%', background: f.w >= Math.round(maxW*0.6) ? 'var(--accent)' : 'var(--text-3)'}}/>
+                  </div>
+                  <div style={{fontSize:10, color:'var(--text-3)'}}>{f.note}</div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          );
+        })()}
       </div>
     </>
   );

@@ -478,6 +478,320 @@
     });
   }
 
+  // ── Narrative Regimes ─────────────────────────────────────────
+  // Chuang (2026) "Narrative Regimes: LLM-Augmented Strategic Asset
+  // Allocation for Long-Horizon Investors". Three-regime Bayesian filter
+  // with regime-policy-mix allocator. Paper constants from Appendix C.
+  const NR_ASSET_ORDER = ['美股','全球','台股','債券','原物料','現金'];
+  // Mapping to paper's 7-asset universe (annualised %).
+  // US eq, Intl dev, EM eq, Treasuries, Corp bonds, Commodities, REITs.
+  // 美股=US, 全球=avg(Intl, REITs), 台股=EM, 債券=avg(Treasury, Corp), 原物料=Commodities.
+  // 現金 has no paper equivalent: 2% risk-free, 0.5% vol.
+  const NR_REGIMES = [
+    {
+      id: 'expansion', name: '擴張', en: 'Expansion', color: '#22c55e',
+      summary: '經濟擴張、企業獲利成長、風險性資產具備溢酬;利率低位、波動受抑制。',
+      mu:    { '美股': 10.0, '全球':  8.75, '台股': 12.0, '債券':  3.5,  '原物料':  5.0, '現金': 2.0 },
+      sigma: { '美股': 14.0, '全球': 16.0,  '台股': 22.0, '債券':  6.0,  '原物料': 18.0, '現金': 0.5 },
+    },
+    {
+      id: 'contraction', name: '緊縮', en: 'Contraction', color: '#f59e0b',
+      summary: '經濟成長放緩、股票分散度上升、公債受益於避險需求、信用利差擴大。',
+      mu:    { '美股':  0.0, '全球': -1.5,  '台股': -3.0, '債券':  4.75, '原物料': -2.0, '現金': 2.0 },
+      sigma: { '美股': 20.0, '全球': 22.0,  '台股': 28.0, '債券':  7.5,  '原物料': 22.0, '現金': 0.5 },
+    },
+    {
+      id: 'stress', name: '壓力', en: 'Stress', color: '#ef4444',
+      summary: '系統性壓力、跨資產相關性向 1 收斂、唯有公債與現金提供避險。',
+      mu:    { '美股': -18.0,'全球': -23.5, '台股': -30.0,'債券':  1.5,  '原物料':  0.0, '現金': 2.0 },
+      sigma: { '美股': 32.0, '全球': 37.0,  '台股': 45.0, '債券': 12.5,  '原物料': 35.0, '現金': 0.5 },
+    },
+  ];
+  // Transition matrix P (rows sum to 1). Paper: diag(0.95, 0.82, 0.60).
+  // Off-diagonals synthesised from relative ergodicity (expansion hardest to exit,
+  // stress likeliest to revert to expansion).
+  const NR_TRANSITION = [
+    [0.95, 0.04, 0.01],
+    [0.13, 0.82, 0.05],
+    [0.25, 0.15, 0.60],
+  ];
+  // Stationary distribution π of NR_TRANSITION (computed via power iteration).
+  const NR_STATIONARY = (() => {
+    let v = [1/3, 1/3, 1/3];
+    for (let i = 0; i < 200; i++) {
+      const n = [0,0,0];
+      for (let k = 0; k < 3; k++) for (let j = 0; j < 3; j++) n[j] += v[k] * NR_TRANSITION[k][j];
+      v = n;
+    }
+    return v;
+  })();
+  // γ per risk profile: moderate = 5 (paper's baseline CRRA).
+  const NR_GAMMA = { conservative: 8, moderate: 5, aggressive: 3 };
+  // SNR β for narrative likelihood. Paper's adoption threshold.
+  const NR_BETA = 2.0;  // paper recommends β≥2 for "strictly dominates"
+  // Weight-inertia λ (paper baseline 0.7).
+  const NR_INERTIA = 0.7;
+  // Per-asset cap w̄.
+  const NR_CAP = 0.60;
+
+  // Solve long-only mean-variance with diagonal Σ, subject to 1'w=1, 0<=w<=cap.
+  // max μ'w - (γ/2) Σ σ_i² w_i² ⇒ w_i = clip((μ_i - λ) / (γ σ_i²), 0, cap).
+  // Binary search on λ to satisfy budget.
+  function _mvDiagSolve(mu, sigma2, gamma, cap) {
+    const n = mu.length;
+    const f = (lam) => {
+      let s = 0;
+      for (let i = 0; i < n; i++) {
+        const raw = (mu[i] - lam) / (gamma * sigma2[i]);
+        s += Math.max(0, Math.min(cap, raw));
+      }
+      return s;
+    };
+    let lo = -1, hi = 1;
+    for (let i = 0; i < 60 && f(lo) < 1; i++) lo -= 1;
+    for (let i = 0; i < 60 && f(hi) > 1; i++) hi += 1;
+    for (let i = 0; i < 80; i++) {
+      const mid = (lo + hi) / 2;
+      if (f(mid) > 1) lo = mid; else hi = mid;
+    }
+    const lam = (lo + hi) / 2;
+    const w = new Array(n);
+    let s = 0;
+    for (let i = 0; i < n; i++) {
+      const raw = (mu[i] - lam) / (gamma * sigma2[i]);
+      w[i] = Math.max(0, Math.min(cap, raw));
+      s += w[i];
+    }
+    // final renorm for numerical safety
+    if (s > 0) for (let i = 0; i < n; i++) w[i] /= s;
+    return w;
+  }
+
+  // Compute per-regime MV-optimal weights for each regime at given γ.
+  // Returns { [regimeId]: { asset: weight } } normalised to 100%.
+  function regimePolicies(gamma) {
+    const out = {};
+    NR_REGIMES.forEach(r => {
+      const mu = NR_ASSET_ORDER.map(a => r.mu[a] / 100);          // decimal
+      const s2 = NR_ASSET_ORDER.map(a => (r.sigma[a] / 100) ** 2); // decimal^2
+      const w = _mvDiagSolve(mu, s2, gamma, NR_CAP);
+      const perAsset = {};
+      NR_ASSET_ORDER.forEach((a, i) => { perAsset[a] = w[i]; });
+      out[r.id] = perAsset;
+    });
+    return out;
+  }
+
+  // Bayesian regime filter (single-step). Paper Algorithm 1 simplified for UI:
+  // - return likelihood from US-equity trailing monthly return
+  // - narrative likelihood from VIX level & SPY 3M trend → soft one-hot s
+  // - prior = π (stationary), posterior ∝ prior × ℓ_r × ℓ_s
+  function _gaussLogLik(r, muAnn, sigAnn) {
+    const mu = muAnn / 12;
+    const s  = sigAnn / Math.sqrt(12);
+    const z  = (r - mu) / s;
+    return -0.5 * z * z - Math.log(s);
+  }
+
+  function _softmax(arr) {
+    const m = Math.max.apply(null, arr);
+    const e = arr.map(x => Math.exp(x - m));
+    const s = e.reduce((a,b) => a+b, 0);
+    return e.map(x => x / s);
+  }
+
+  function _buildNarrativeSignal(vix, trend3M) {
+    // Paper: s ~ N(e_k, σ² I), σ² = 1/β. We output a soft one-hot ∈ [0,1]³.
+    // VIX low & trend positive → expansion; VIX mid or trend negative → contraction;
+    // VIX > 30 → stress. Blend the two axes with a simple weighted vote.
+    const s = [0, 0, 0];
+    // VIX axis
+    if (vix == null) {
+      s[0] += 0.4; s[1] += 0.3; s[2] += 0.3;
+    } else if (vix < 18) {
+      s[0] += 0.8;
+    } else if (vix < 25) {
+      s[0] += 0.3; s[1] += 0.7;
+    } else if (vix < 35) {
+      s[1] += 0.5; s[2] += 0.5;
+    } else {
+      s[2] += 1.0;
+    }
+    // Trend axis
+    if (trend3M == null) {
+      s[0] += 0.4; s[1] += 0.3; s[2] += 0.3;
+    } else if (trend3M > 0.04) {
+      s[0] += 0.9;
+    } else if (trend3M > -0.02) {
+      s[0] += 0.3; s[1] += 0.5;
+    } else if (trend3M > -0.10) {
+      s[1] += 0.9;
+    } else {
+      s[2] += 1.0;
+    }
+    const sum = s[0] + s[1] + s[2];
+    return sum > 0 ? s.map(x => x / sum) : [1/3, 1/3, 1/3];
+  }
+
+  // Main regime detector. Inputs (all optional; falls back to stationary):
+  //   spyReturn1M: trailing 1-month return of broad US equity (decimal, e.g. +0.02)
+  //   spyReturn3M: trailing 3-month return
+  //   vix:         latest VIX level
+  //   override:    'expansion'|'contraction'|'stress' → skip filter
+  //   prevPosterior: optional 3-vector for Markov predict step
+  function detectRegime({ spyReturn1M, spyReturn3M, vix, override, prevPosterior } = {}) {
+    const drivers = [];
+
+    if (override && NR_REGIMES.find(r => r.id === override)) {
+      const idx = NR_REGIMES.findIndex(r => r.id === override);
+      const p = [0,0,0]; p[idx] = 1;
+      return {
+        posterior: p,
+        dominantId: override,
+        dominant: NR_REGIMES[idx],
+        confidence: 1.0,
+        drivers: [{ factor: '使用者覆寫', value: NR_REGIMES[idx].name, contribution: 1.0, source: '手動' }],
+        signalVec: [0,0,0],
+        narrativeSNR: NR_BETA,
+        overridden: true,
+      };
+    }
+
+    // 1) Prior from Markov predict
+    let prior = prevPosterior && prevPosterior.length === 3
+      ? [0,0,0].map((_, j) => prevPosterior.reduce((s, pk, k) => s + pk * NR_TRANSITION[k][j], 0))
+      : NR_STATIONARY.slice();
+
+    // 2) Return log-likelihood (US equity trailing 1M return)
+    const ℓr = [0,0,0];
+    if (spyReturn1M != null) {
+      NR_REGIMES.forEach((r, k) => {
+        ℓr[k] = _gaussLogLik(spyReturn1M, r.mu['美股'] / 100, r.sigma['美股'] / 100);
+      });
+      drivers.push({
+        factor: '美股 1M 報酬',
+        value: (spyReturn1M * 100).toFixed(2) + '%',
+        contribution: 0,
+        source: '^GSPC',
+      });
+    }
+
+    // 3) Narrative log-likelihood: ℓ_s = -β/2 ||s - e_k||²
+    const signalVec = _buildNarrativeSignal(vix, spyReturn3M);
+    const ℓs = [0,0,0];
+    for (let k = 0; k < 3; k++) {
+      let sq = 0;
+      for (let j = 0; j < 3; j++) {
+        const d = signalVec[j] - (j === k ? 1 : 0);
+        sq += d * d;
+      }
+      ℓs[k] = -0.5 * NR_BETA * sq;
+    }
+    if (vix != null) {
+      drivers.push({
+        factor: 'VIX',
+        value: vix.toFixed(1),
+        contribution: 0,
+        source: '^VIX',
+      });
+    }
+    if (spyReturn3M != null) {
+      drivers.push({
+        factor: '美股 3M 趨勢',
+        value: (spyReturn3M * 100).toFixed(2) + '%',
+        contribution: 0,
+        source: '^GSPC',
+      });
+    }
+
+    // 4) Bayes update
+    const logPost = prior.map((p, k) => Math.log(Math.max(1e-12, p)) + ℓr[k] + ℓs[k]);
+    const posterior = _softmax(logPost);
+
+    // Identify dominant regime
+    let di = 0;
+    for (let k = 1; k < 3; k++) if (posterior[k] > posterior[di]) di = k;
+
+    // Fill driver contributions (share of posterior logit mass relative to dominant)
+    const totalLL = ℓr.reduce((s,x) => s + Math.abs(x), 0) + ℓs.reduce((s,x) => s + Math.abs(x), 0);
+    drivers.forEach(d => {
+      if (d.factor === '美股 1M 報酬')  d.contribution = totalLL > 0 ? Math.abs(ℓr[di]) / totalLL : 0;
+      else if (d.factor === 'VIX')      d.contribution = totalLL > 0 ? Math.abs(ℓs[di]) * 0.6 / totalLL : 0;
+      else if (d.factor === '美股 3M 趨勢') d.contribution = totalLL > 0 ? Math.abs(ℓs[di]) * 0.4 / totalLL : 0;
+    });
+    // Prior contribution
+    drivers.push({
+      factor: '先驗 (Markov)',
+      value: (prior[di] * 100).toFixed(0) + '%',
+      contribution: totalLL > 0 ? 1 - drivers.reduce((s,d) => s + d.contribution, 0) : 1,
+      source: '論文 Appendix C',
+    });
+
+    return {
+      posterior,
+      dominantId: NR_REGIMES[di].id,
+      dominant: NR_REGIMES[di],
+      confidence: posterior[di],
+      drivers,
+      signalVec,
+      narrativeSNR: NR_BETA,
+      overridden: false,
+    };
+  }
+
+  // Posterior-weighted target allocation, preserving base palette + sector labels.
+  // regimeResult: output of detectRegime(); risk: 'conservative'|'moderate'|'aggressive'.
+  // Returns array shaped like baseAllocation with .target replaced by regime-informed %.
+  function targetsForPosterior(baseAllocation, regimeResult, risk) {
+    const gamma = NR_GAMMA[risk] || NR_GAMMA.moderate;
+    const policies = regimePolicies(gamma);
+    const byAsset = {};
+    NR_ASSET_ORDER.forEach(a => { byAsset[a] = 0; });
+    NR_REGIMES.forEach((r, k) => {
+      const p = regimeResult?.posterior?.[k] || NR_STATIONARY[k];
+      NR_ASSET_ORDER.forEach(a => { byAsset[a] += p * policies[r.id][a]; });
+    });
+    // Normalise (should already sum to 1 but guard against float)
+    const s = Object.values(byAsset).reduce((a,b) => a+b, 0) || 1;
+    NR_ASSET_ORDER.forEach(a => { byAsset[a] /= s; });
+    // Project onto baseAllocation shape; for asset names in base but not in NR, keep base target.
+    return baseAllocation.map(base => {
+      const w = byAsset[base.name];
+      if (w == null) return { ...base };
+      return { ...base, target: Math.round(w * 1000) / 10 };
+    });
+  }
+
+  // Convenience: single-regime targets (used for "regime baseline" view).
+  function targetsForRegime(baseAllocation, regimeId, risk) {
+    const fake = { posterior: [0,0,0] };
+    const idx = NR_REGIMES.findIndex(r => r.id === regimeId);
+    if (idx < 0) return baseAllocation.map(b => ({...b}));
+    fake.posterior[idx] = 1;
+    return targetsForPosterior(baseAllocation, fake, risk);
+  }
+
+  function regimeExplain(id) {
+    const r = NR_REGIMES.find(x => x.id === id);
+    return r ? r.summary : '';
+  }
+
+  const NarrativeRegimes = {
+    REGIMES: NR_REGIMES,
+    ASSET_ORDER: NR_ASSET_ORDER,
+    TRANSITION: NR_TRANSITION,
+    STATIONARY: NR_STATIONARY,
+    GAMMA: NR_GAMMA,
+    BETA: NR_BETA,
+    INERTIA: NR_INERTIA,
+    CAP: NR_CAP,
+    detectRegime,
+    regimePolicies,
+    targetsForPosterior,
+    targetsForRegime,
+    explain: regimeExplain,
+  };
+
   // Re-render hook: returns `Date.now()` refreshed every `intervalMs`.
   // Components that read `relTime(updatedAt)` can call this to keep labels fresh.
   function useNow(intervalMs = 15000) {
@@ -510,6 +824,7 @@
     applyQuotesToHoldings,
     holdingsToTickers,
     relTime,
+    NarrativeRegimes,
   };
   window.useLiveQuotes = useLiveQuotes;
   window.useLiveHistory = useLiveHistory;
