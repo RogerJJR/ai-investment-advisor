@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = $PSScriptRoot
 $releaseDir = Join-Path $repoRoot "release"
-$zipPath = Join-Path $releaseDir "narrative-regimes-preprint-v0.1.0.zip"
+$zipPath = Join-Path $releaseDir "narrative-regimes-preprint-v0.2.0.zip"
 
 if (Test-Path $zipPath) { Remove-Item $zipPath }
 
