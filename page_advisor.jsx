@@ -122,6 +122,72 @@ function Advisor({ risk }) {
         </div>
       </div>
 
+      {/* Cash buffer recommendation */}
+      {(() => {
+        let prefs = {};
+        try { prefs = JSON.parse(localStorage.getItem('ai-advisor-prefs-v1') || '{}'); } catch {}
+        const horizon = Number(prefs.horizon) || 15;
+        const monthly = Number(prefs.monthly) || 30000;
+        const totalMV = target.reduce((s, a) => s + (a.mv || 0), 0) || RT.totalValueTWD(holdings, usdTwd);
+        const riskBuffer = { conservative: 12, moderate: 6, aggressive: 3 }[risk] || 6;
+        const recommendedCash = monthly * riskBuffer;
+        const cashNow = holdings.filter(h => h.symbol === 'CASH' || h.sector === '現金')
+          .reduce((s, h) => s + RT.holdingMarketValueTWD(h, usdTwd), 0);
+        const ratioNow  = totalMV > 0 ? (cashNow / totalMV) * 100 : 0;
+        const ratioRec  = totalMV > 0 ? (recommendedCash / totalMV) * 100 : 0;
+        const gap       = recommendedCash - cashNow;
+        const status = Math.abs(gap) < monthly ? 'ok' : gap > 0 ? 'low' : 'high';
+        const statusColor = status === 'ok' ? 'var(--pos)' : status === 'low' ? 'var(--warn)' : 'var(--accent)';
+        const statusLabel = status === 'ok' ? '現金部位適中' : status === 'low' ? '現金緩衝偏低' : '現金部位偏高';
+        const rationale = status === 'ok'
+          ? `目前現金約當 ${riskBuffer - 0.5}~${riskBuffer + 0.5} 個月月定投,屬合理區間。`
+          : status === 'low'
+            ? `建議補足至約 ${riskBuffer} 個月的月定投金額,以因應短期市場波動或突發支出需求。`
+            : `現金占比較高,長期而言機會成本上升,可考慮分批投入核心配置以加快資產累積。`;
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)', borderLeft:`2px solid ${statusColor}`}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">現金緩衝建議</div>
+                <div className="card-sub">考量你的風險等級 · 月定投 {fmt.tw(monthly)} · 投資期限 {horizon} 年</div>
+              </div>
+              <span className="chip" style={{color:statusColor, borderColor:statusColor}}>
+                <span className="dot" style={{background:statusColor}}/>{statusLabel}
+              </span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:14, marginBottom:12}}>
+              <div>
+                <div className="mono-label">目前現金部位</div>
+                <div className="mono" style={{fontSize:18, color:'var(--text-0)', marginTop:4}}>{fmt.tw(cashNow)}</div>
+                <div style={{fontSize:10, color:'var(--text-3)', marginTop:2}}>占總資產 {ratioNow.toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="mono-label">建議現金部位</div>
+                <div className="mono" style={{fontSize:18, color:'var(--accent)', marginTop:4}}>{fmt.tw(recommendedCash)}</div>
+                <div style={{fontSize:10, color:'var(--text-3)', marginTop:2}}>約 {riskBuffer} 個月月定投 · {ratioRec.toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="mono-label">{gap >= 0 ? '建議補足' : '建議釋出'}</div>
+                <div className="mono" style={{fontSize:18, color: gap >= 0 ? 'var(--warn)' : 'var(--accent)', marginTop:4}}>
+                  {gap >= 0 ? '+' : '-'}{fmt.tw(Math.abs(gap))}
+                </div>
+                <div style={{fontSize:10, color:'var(--text-3)', marginTop:2}}>差 {Math.abs(ratioRec - ratioNow).toFixed(1)}pp</div>
+              </div>
+              <div>
+                <div className="mono-label">依風險等級</div>
+                <div className="mono" style={{fontSize:14, color:'var(--text-0)', marginTop:4}}>
+                  {{ conservative:'保守 12 個月', moderate:'穩健 6 個月', aggressive:'積極 3 個月' }[risk] || '穩健 6 個月'}
+                </div>
+                <div style={{fontSize:10, color:'var(--text-3)', marginTop:2}}>對應月定投倍數</div>
+              </div>
+            </div>
+            <div style={{fontSize:11.5, color:'var(--text-2)', lineHeight:1.65, padding:'10px 12px', background:'var(--bg-2)', borderRadius:'var(--radius)'}}>
+              {rationale}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Deviation map */}
       {(() => {
         const MAX_SCALE = Math.max(60, ...target.map(a => Math.max(a.current, a.target)) );
