@@ -158,7 +158,13 @@ function Holdings() {
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={11} style={{textAlign:'center', padding:32, color:'var(--text-3)'}}>沒有符合條件的持股。按右上角「新增持股」開始輸入。</td></tr>
+              <tr><td colSpan={11}>
+                <div className="empty-state">
+                  <div className="empty-icon"><Icon name="portfolio" size={18}/></div>
+                  <div className="empty-title">{userHoldings.length === 0 ? '尚未建立持股' : '沒有符合條件的持股'}</div>
+                  <div>{userHoldings.length === 0 ? '按右上角「新增持股」或「恢復示範資料」開始。' : '調整搜尋或類別篩選條件。'}</div>
+                </div>
+              </td></tr>
             )}
             {filtered.map(h => {
               const mv = RT.holdingMarketValueTWD(h, usdTwd);

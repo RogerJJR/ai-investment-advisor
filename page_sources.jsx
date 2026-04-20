@@ -134,6 +134,28 @@ function Sources() {
             </div>
           </div>
           <div>
+            {newsStatus === 'loading' && liveNews.length === 0 && (
+              <div>
+                {[0,1,2,3].map(i => (
+                  <div key={i} style={{padding:'14px 16px', borderBottom:'1px solid var(--line)'}}>
+                    <div style={{display:'flex', gap:8, marginBottom:8}}>
+                      <span className="skel" style={{width:34, height:16}}/>
+                      <span className="skel" style={{width:48, height:16}}/>
+                      <span className="skel" style={{width:70, height:12, marginLeft:'auto'}}/>
+                    </div>
+                    <div className="skel" style={{width:'85%', height:14, marginBottom:6}}/>
+                    <div className="skel" style={{width:'35%', height:10}}/>
+                  </div>
+                ))}
+              </div>
+            )}
+            {filtered.length === 0 && newsStatus !== 'loading' && (
+              <div className="empty-state">
+                <div className="empty-icon"><Icon name="database" size={18}/></div>
+                <div className="empty-title">此分類暫無資料</div>
+                <div>切換類別或點「同步最新」重新抓取。</div>
+              </div>
+            )}
             {filtered.map((s, i) => {
               const key = s.id || s.title;
               const active = (selected.id || selected.title) === key;

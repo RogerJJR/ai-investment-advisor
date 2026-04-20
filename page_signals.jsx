@@ -66,6 +66,13 @@ function Signals() {
             </div>
           </div>
           <div>
+            {signals.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-icon"><Icon name="check" size={18}/></div>
+                <div className="empty-title">目前沒有待處理訊號</div>
+                <div>AI 每 60 秒重新評估;有新訊號時會自動出現。</div>
+              </div>
+            )}
             {signals.map(s => {
               const active = selected.id === s.id;
               const color = s.level === 'high' ? 'var(--neg)' : s.level === 'medium' ? 'var(--warn)' : s.level === 'low' ? 'var(--accent)' : 'var(--text-3)';
