@@ -1,26 +1,26 @@
 {
-  "name": "20 Rebalance threshold 0.03",
+  "name": "15 Vol targeting (8% annual)",
   "stats": {
-    "annual_return": 0.0368978129482582,
-    "annual_vol": 0.06959584309472444,
-    "cagr": 0.03508390378887375,
-    "sharpe": 0.24881747097383308,
-    "sortino": 0.38621095611343875,
-    "max_drawdown": -0.20393695498772013,
-    "calmar": 0.2023880861307824,
-    "avg_turnover": 0.046357379444330625,
-    "crra_ce_annual": 0.024937065775140394,
-    "crra_ce_annual_se": 0.003945171104034742,
-    "sharpe_se": 0.05534362968629118
+    "annual_return": 0.042122195289601524,
+    "annual_vol": 0.06782319653596827,
+    "cagr": 0.04062468153642644,
+    "sharpe": 0.3287454154715886,
+    "sortino": 0.5337413603816643,
+    "max_drawdown": -0.2018773830786581,
+    "calmar": 0.2361462456272406,
+    "avg_turnover": 0.03449449871619217,
+    "crra_ce_annual": 0.0309255252090005,
+    "crra_ce_annual_se": 0.0026677698281528843,
+    "sharpe_se": 0.03771231679863604
   },
   "cfg": {
     "risk_aversion": 5.0,
     "long_only": true,
     "max_weight": 0.6,
-    "min_cash_equiv": 0.0,
+    "min_cash_equiv": 0.1,
     "tc_bps": 10.0,
-    "mu_shrinkage": 0.2,
-    "weight_inertia": 0.7,
+    "mu_shrinkage": 0.4,
+    "weight_inertia": 0.85,
     "use_lw_shrinkage": true,
     "lw_alpha": 0.2,
     "use_regime_gamma": true,
@@ -38,6 +38,6 @@
     "rp_blend_alpha": 0.3,
     "use_michaud": false,
     "michaud_n_boot": 50,
-    "rebalance_threshold": 0.03
+    "rebalance_threshold": 0.0
   }
 }
