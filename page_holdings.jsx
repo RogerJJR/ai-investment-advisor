@@ -294,6 +294,63 @@ function Holdings() {
         </div>
       </div>
 
+      {/* Concentration health check */}
+      {holdingsWithWeight.length > 0 && (() => {
+        const sorted = [...holdingsWithWeight].filter(h => h.symbol !== 'CASH').sort((a,b) => b.weight - a.weight);
+        if (sorted.length === 0) return null;
+        const topOne = sorted[0];
+        const top3   = sorted.slice(0, 3).reduce((s,h) => s + h.weight, 0);
+        const top5   = sorted.slice(0, 5).reduce((s,h) => s + h.weight, 0);
+        const sectorAgg = holdingsWithWeight.reduce((acc, h) => { acc[h.sector] = (acc[h.sector] || 0) + h.weight; return acc; }, {});
+        const topSector = Object.entries(sectorAgg).sort((a,b) => b[1]-a[1])[0];
+        const issues = [];
+        if (topOne.weight > 30) issues.push({ level:'high', text:`${topOne.symbol} 占 ${topOne.weight.toFixed(1)}% (>30% 建議上限)` });
+        else if (topOne.weight > 20) issues.push({ level:'med', text:`${topOne.symbol} 占 ${topOne.weight.toFixed(1)}% (接近 30% 警戒)` });
+        if (top3 > 70) issues.push({ level:'high', text:`前 3 大合計 ${top3.toFixed(1)}% (>70% 過度集中)` });
+        if (topSector && topSector[1] > 70) issues.push({ level:'med', text:`${topSector[0]} 市場占 ${topSector[1].toFixed(1)}% (建議分散)` });
+        const statusColor = issues.some(i => i.level === 'high') ? 'var(--neg)'
+                          : issues.length ? 'var(--warn)' : 'var(--pos)';
+        const statusLabel = issues.some(i => i.level === 'high') ? '需關注'
+                          : issues.length ? '可檢視' : '分散良好';
+        const stat = (label, pct, upper) => {
+          const over = pct > upper;
+          return (
+            <div style={{padding:10, borderRadius:'var(--radius)', background:'var(--bg-2)', borderLeft:`2px solid ${over?'var(--warn)':'var(--pos)'}`}}>
+              <div className="mono-label">{label}</div>
+              <div className="mono" style={{fontSize:16, color: over?'var(--warn)':'var(--text-0)', marginTop:4}}>{pct.toFixed(1)}%</div>
+              <div style={{fontSize:10, color:'var(--text-3)', marginTop:2}}>建議 ≤ {upper}%</div>
+            </div>
+          );
+        };
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)', borderLeft:`2px solid ${statusColor}`}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">集中度健檢</div>
+                <div className="card-sub">檢視單一持股與前幾大權重是否過度集中 · 資料僅供參考</div>
+              </div>
+              <span className="chip" style={{color:statusColor}}><span className="dot" style={{background:statusColor}}/>{statusLabel}</span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:10, marginBottom:issues.length?12:0}}>
+              {stat(`最大單一 · ${topOne.symbol}`, topOne.weight, 30)}
+              {stat('前 3 大合計', top3, 60)}
+              {stat('前 5 大合計', top5, 80)}
+              {topSector && stat(`最大類別 · ${topSector[0]}`, topSector[1], 60)}
+            </div>
+            {issues.length > 0 && (
+              <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                {issues.map((i, idx) => (
+                  <div key={idx} style={{display:'flex', alignItems:'center', gap:8, fontSize:11, color:'var(--text-1)', padding:'6px 10px', borderRadius:4, background: i.level==='high'?'var(--neg-soft)':'var(--warn-soft)'}}>
+                    <Icon name="alert" size={11} style={{color: i.level==='high'?'var(--neg)':'var(--warn)'}}/>
+                    {i.text}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Filter bar */}
       <div className="card" style={{padding:'10px 14px', marginBottom:12, display:'flex', alignItems:'center', gap:10}}>
         <div className="seg">
