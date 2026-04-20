@@ -64,10 +64,22 @@ const BT_TICKER_LABEL = {
   'GLD':    '黃金',
 };
 
+function rollingCAGR(annual, window) {
+  if (annual.length < window) return [];
+  const out = [];
+  for (let i = window - 1; i < annual.length; i++) {
+    let prod = 1;
+    for (let j = i - window + 1; j <= i; j++) prod *= 1 + (annual[j].ret / 100);
+    out.push({ year: annual[i].year, ret: (Math.pow(prod, 1 / window) - 1) * 100 });
+  }
+  return out;
+}
+
 function Backtest() {
   const [preset, setPreset] = React.useState('AI 建議');
   const [excluded, setExcluded] = React.useState(() => new Set());
   const [rangeYears, setRangeYears] = React.useState(10); // 3 | 5 | 10 | 0(all)
+  const [rollWindow, setRollWindow] = React.useState(3); // 3 | 5
   const tickers = [...new Set([...Object.keys(BT_WEIGHTS), ...Object.keys(BT_BENCHMARK)])];
   const { history, status, error } = useLiveHistory(tickers, { range: '10y', interval: '1mo' });
 
@@ -190,6 +202,74 @@ function Backtest() {
           labels={bt.years.map(String)}
         />
       </div>
+
+      {/* Rolling annualized returns */}
+      {isLive && (() => {
+        const rollAI    = rollingCAGR(aiAnnual, rollWindow);
+        const rollBench = rollingCAGR(benchAnnual, rollWindow);
+        if (rollAI.length === 0) return null;
+        const beats = rollAI.filter((r, i) => rollBench[i] && r.ret >= rollBench[i].ret).length;
+        const winPct = (beats / rollAI.length) * 100;
+        const maxAbs = Math.max(1, ...rollAI.map(r => Math.abs(r.ret)), ...rollBench.map(r => Math.abs(r.ret)));
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">滾動 {rollWindow} 年化報酬</div>
+                <div className="card-sub">每個年份代表「截至當年為止的前 {rollWindow} 年」複利年化報酬 · AI 勝出基準 {beats}/{rollAI.length} 年 ({winPct.toFixed(0)}%)</div>
+              </div>
+              <div className="seg">
+                {[3, 5].map(w => (
+                  <button key={w} className={rollWindow===w?'active':''} onClick={()=>setRollWindow(w)} disabled={aiAnnual.length < w}>{w} 年視窗</button>
+                ))}
+              </div>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              {rollAI.map((r, i) => {
+                const b = rollBench[i]?.ret ?? 0;
+                const aiPct = (Math.abs(r.ret) / maxAbs) * 50;
+                const bPct  = (Math.abs(b)     / maxAbs) * 50;
+                const winAI = r.ret >= b;
+                return (
+                  <div key={r.year} style={{display:'grid', gridTemplateColumns:'50px 1fr 70px 70px 60px', gap:10, alignItems:'center', padding:'4px 0'}}>
+                    <span className="mono" style={{fontSize:11, color:'var(--text-2)'}}>{r.year}</span>
+                    <div style={{position:'relative', height:18}}>
+                      <div style={{position:'absolute', left:'50%', top:0, bottom:0, width:1, background:'var(--line-2)'}}/>
+                      <div title={`AI ${r.ret.toFixed(1)}%`} style={{
+                        position:'absolute', top:2, height:6,
+                        ...(r.ret >= 0
+                          ? { left:'50%', width: aiPct + '%' }
+                          : { right:'50%', width: aiPct + '%' }),
+                        background:'var(--accent)', borderRadius:3,
+                      }}/>
+                      <div title={`基準 ${b.toFixed(1)}%`} style={{
+                        position:'absolute', bottom:2, height:6,
+                        ...(b >= 0
+                          ? { left:'50%', width: bPct + '%' }
+                          : { right:'50%', width: bPct + '%' }),
+                        background:'var(--text-3)', borderRadius:3, opacity:0.75,
+                      }}/>
+                    </div>
+                    <span className="mono" style={{fontSize:11, textAlign:'right', color: r.ret >= 0 ? 'var(--pos)' : 'var(--neg)'}}>{r.ret >= 0 ? '+' : ''}{r.ret.toFixed(1)}%</span>
+                    <span className="mono" style={{fontSize:11, textAlign:'right', color:'var(--text-3)'}}>{b >= 0 ? '+' : ''}{b.toFixed(1)}%</span>
+                    <span className="mono" style={{fontSize:10, textAlign:'right', color: winAI ? 'var(--pos)' : 'var(--neg)'}}>
+                      {winAI ? '贏' : '輸'} {Math.abs(r.ret - b).toFixed(1)}pp
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{display:'flex', gap:14, marginTop:12, fontSize:11, color:'var(--text-3)'}}>
+              <span style={{display:'inline-flex', alignItems:'center', gap:5}}>
+                <span style={{width:12, height:6, background:'var(--accent)', borderRadius:2}}/>AI 建議
+              </span>
+              <span style={{display:'inline-flex', alignItems:'center', gap:5}}>
+                <span style={{width:12, height:6, background:'var(--text-3)', borderRadius:2, opacity:0.75}}/>基準 60/40
+              </span>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="card" style={{marginBottom:'var(--density-gap)'}}>
         <div className="card-head">
