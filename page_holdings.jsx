@@ -110,6 +110,8 @@ function Holdings() {
       cost:   Number(data.cost)   || 0,
       weight: 0,
       notes:  data.notes || '',
+      targetSell: data.targetSell ? Number(data.targetSell) : null,
+      targetBuy:  data.targetBuy  ? Number(data.targetBuy)  : null,
     };
     setHoldings([...userHoldings, h]);
   };
@@ -293,6 +295,72 @@ function Holdings() {
           ))}
         </div>
       </div>
+
+      {/* Target price alerts */}
+      {(() => {
+        const withTargets = holdingsWithWeight.filter(h => h.targetSell || h.targetBuy);
+        if (withTargets.length === 0) return null;
+        const hits = withTargets.map(h => {
+          const sellHit = h.targetSell && h.price >= h.targetSell;
+          const buyHit  = h.targetBuy  && h.price <= h.targetBuy;
+          const sellDist = h.targetSell ? ((h.price - h.targetSell) / h.targetSell) * 100 : null;
+          const buyDist  = h.targetBuy  ? ((h.price - h.targetBuy)  / h.targetBuy)  * 100 : null;
+          return { h, sellHit, buyHit, sellDist, buyDist };
+        });
+        const triggered = hits.filter(x => x.sellHit || x.buyHit);
+        const pending   = hits.filter(x => !x.sellHit && !x.buyHit);
+        return (
+          <div className="card" style={{
+            marginBottom:'var(--density-gap)',
+            borderLeft: `2px solid ${triggered.length ? 'var(--warn)' : 'var(--accent)'}`,
+          }}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">目標價提醒</div>
+                <div className="card-sub">已觸發 {triggered.length} 項 · 追蹤中 {pending.length} 項 · 於編輯持股時設定目標買/賣價</div>
+              </div>
+              {triggered.length > 0 && <span className="chip" style={{color:'var(--warn)', borderColor:'var(--warn)'}}><span className="dot pulse" style={{background:'var(--warn)'}}/>有目標達成</span>}
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:6}}>
+              {triggered.map(({ h, sellHit, buyHit, sellDist, buyDist }) => (
+                <div key={h.id + '-hit'} style={{
+                  display:'grid', gridTemplateColumns:'110px 1fr auto auto', gap:12, alignItems:'center',
+                  padding:'8px 12px', background:'var(--warn-soft)', borderRadius:'var(--radius)',
+                  border:'1px solid var(--warn)',
+                }}>
+                  <span className="mono" style={{fontSize:12, color:'var(--text-0)', fontWeight:500}}>{h.symbol}</span>
+                  <span style={{fontSize:11, color:'var(--text-1)'}}>
+                    {sellHit && <>已達賣出目標 · 現價 <b className="mono">{fmt.num(h.price)}</b> ≥ 目標 <b className="mono">{fmt.num(h.targetSell)}</b> (+{sellDist.toFixed(1)}%)</>}
+                    {buyHit && !sellHit && <>已達買入目標 · 現價 <b className="mono">{fmt.num(h.price)}</b> ≤ 目標 <b className="mono">{fmt.num(h.targetBuy)}</b> ({buyDist.toFixed(1)}%)</>}
+                  </span>
+                  <span className="chip" style={{fontSize:10, color:sellHit?'var(--neg)':'var(--pos)'}}>
+                    {sellHit ? '考慮減碼' : '考慮加碼'}
+                  </span>
+                  <button className="btn ghost" style={{height:26, fontSize:11}} onClick={() => setEditing(h)}>調整目標</button>
+                </div>
+              ))}
+              {pending.slice(0, 3).map(({ h, sellDist, buyDist }) => (
+                <div key={h.id + '-pend'} style={{
+                  display:'grid', gridTemplateColumns:'110px 1fr auto', gap:12, alignItems:'center',
+                  padding:'6px 12px', background:'var(--bg-2)', borderRadius:'var(--radius)',
+                  border:'1px dashed var(--line)',
+                }}>
+                  <span className="mono" style={{fontSize:12, color:'var(--text-1)'}}>{h.symbol}</span>
+                  <span style={{fontSize:11, color:'var(--text-3)'}}>
+                    現價 {fmt.num(h.price)}
+                    {h.targetSell && <> · 距賣出 {fmt.num(h.targetSell)} <span className="mono" style={{color:'var(--text-2)'}}>({sellDist.toFixed(1)}%)</span></>}
+                    {h.targetBuy && <> · 距買入 {fmt.num(h.targetBuy)} <span className="mono" style={{color:'var(--text-2)'}}>({buyDist.toFixed(1)}%)</span></>}
+                  </span>
+                  <button className="icon-btn" style={{width:24, height:24}} onClick={() => setEditing(h)}><Icon name="settings" size={11}/></button>
+                </div>
+              ))}
+              {pending.length > 3 && (
+                <div style={{fontSize:11, color:'var(--text-3)', paddingLeft:12}}>其餘 {pending.length - 3} 項追蹤中…</div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Concentration health check */}
       {holdingsWithWeight.length > 0 && (() => {
@@ -510,6 +578,8 @@ function HoldingFormModal({ holding, onClose, onSave }) {
   const [sector, setSector] = React.useState(holding?.sector || '');
   const [type,   setType]   = React.useState(holding?.type   || '');
   const [notes,  setNotes]  = React.useState(holding?.notes  || '');
+  const [targetSell, setTargetSell] = React.useState(holding?.targetSell ? String(holding.targetSell) : '');
+  const [targetBuy,  setTargetBuy]  = React.useState(holding?.targetBuy  ? String(holding.targetBuy)  : '');
   const [lookupStatus, setLookupStatus] = React.useState('idle');
   const [lookupPrice, setLookupPrice]   = React.useState(null);
 
@@ -541,6 +611,8 @@ function HoldingFormModal({ holding, onClose, onSave }) {
       sector: sector || guessSectorType(sym).sector,
       type:   type   || guessSectorType(sym).type,
       notes: notes.trim(),
+      targetSell: targetSell ? Number(targetSell) : null,
+      targetBuy:  targetBuy  ? Number(targetBuy)  : null,
     });
   };
 
@@ -590,6 +662,17 @@ function HoldingFormModal({ holding, onClose, onSave }) {
               <option value="">自動判斷</option>
               {TYPE_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
+          </div>
+        </div>
+
+        <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:14}}>
+          <div>
+            <label className="field-label">目標賣價 <span style={{color:'var(--text-3)', fontSize:10, marginLeft:4}}>(選填)</span></label>
+            <input className="input" type="number" step="0.01" placeholder="超過此價提醒減碼" value={targetSell} onChange={e=>setTargetSell(e.target.value)}/>
+          </div>
+          <div>
+            <label className="field-label">目標買價 <span style={{color:'var(--text-3)', fontSize:10, marginLeft:4}}>(選填)</span></label>
+            <input className="input" type="number" step="0.01" placeholder="低於此價提醒加碼" value={targetBuy} onChange={e=>setTargetBuy(e.target.value)}/>
           </div>
         </div>
 
