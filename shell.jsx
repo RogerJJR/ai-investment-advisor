@@ -1,6 +1,11 @@
 // Sidebar nav + topbar
 const { useState, useEffect, useRef, useMemo } = React;
 
+const APP_VERSION = 'v1.0.0';
+const APP_BUILD_DATE = '2026-04-20';
+window.APP_VERSION = APP_VERSION;
+window.APP_BUILD_DATE = APP_BUILD_DATE;
+
 function Sidebar({ current, onNav }) {
   const [userHoldings] = useHoldings();
   const tickers = useMemo(() => [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])], [userHoldings]);
@@ -45,6 +50,15 @@ function Sidebar({ current, onNav }) {
           <span>Long-term Advisor</span>
           <b>配置顧問</b>
         </div>
+        <span
+          className="mono"
+          title={`版本 ${APP_VERSION} · 釋出 ${APP_BUILD_DATE}`}
+          style={{
+            fontSize:9, color:'var(--text-3)', padding:'2px 6px',
+            borderRadius:4, border:'1px solid var(--line)', marginLeft:'auto',
+            letterSpacing:'0.02em',
+          }}
+        >{APP_VERSION}</span>
       </div>
 
       {NAV.map(group => (
@@ -75,6 +89,9 @@ function Sidebar({ current, onNav }) {
           <b>{DATA.user.name}</b>
           <span>穩健型 · 15 年</span>
         </div>
+      </div>
+      <div style={{fontSize:9, color:'var(--text-4)', textAlign:'center', padding:'6px 12px', borderTop:'1px dashed var(--line)', letterSpacing:'0.02em'}}>
+        <span className="mono">{APP_VERSION}</span> · Build {APP_BUILD_DATE}
       </div>
     </aside>
   );
