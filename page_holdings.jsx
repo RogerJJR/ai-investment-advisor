@@ -20,6 +20,14 @@ function Holdings() {
   const [showAdd, setShowAdd] = React.useState(false);
   const [search, setSearch]   = React.useState('');
   const [filterSector, setFilterSector] = React.useState('全部');
+  const [selectedIds, setSelectedIds] = React.useState(new Set());
+  const toggleSel = (id) => { const n = new Set(selectedIds); n.has(id) ? n.delete(id) : n.add(id); setSelectedIds(n); };
+  const removeSelected = () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`確定移除選取的 ${selectedIds.size} 檔?此動作無法復原。`)) return;
+    setHoldings(userHoldings.filter(h => !selectedIds.has(h.id)));
+    setSelectedIds(new Set());
+  };
 
   const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
@@ -224,7 +232,14 @@ function Holdings() {
           <Icon name="search" size={12} style={{position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-3)'}}/>
           <input className="input" placeholder="搜尋代號 / 名稱" value={search} onChange={e=>setSearch(e.target.value)} style={{width:220, paddingLeft:30, height:30}}/>
         </div>
-        <button className="icon-btn"><Icon name="filter" size={13}/></button>
+        {selectedIds.size > 0 && (
+          <>
+            <span style={{fontSize:11, color:'var(--text-2)'}}>已選 {selectedIds.size} 檔</span>
+            <button className="btn" onClick={() => setSelectedIds(new Set())}>取消選取</button>
+            <button className="btn" style={{color:'var(--neg)'}} onClick={removeSelected}><Icon name="trash" size={13}/>批次移除</button>
+          </>
+        )}
+        <button className="icon-btn" aria-label="進階篩選"><Icon name="filter" size={13}/></button>
       </div>
 
       {/* Holdings table */}
@@ -232,7 +247,16 @@ function Holdings() {
         <table className="tbl">
           <thead>
             <tr>
-              <th style={{width:30}}><input type="checkbox"/></th>
+              <th style={{width:30}}>
+                <input type="checkbox"
+                       checked={filtered.length > 0 && filtered.every(h => selectedIds.has(h.id))}
+                       onChange={(e) => {
+                         const n = new Set(selectedIds);
+                         if (e.target.checked) filtered.forEach(h => n.add(h.id));
+                         else filtered.forEach(h => n.delete(h.id));
+                         setSelectedIds(n);
+                       }}/>
+              </th>
               <th>代號</th>
               <th>名稱</th>
               <th>類別</th>
@@ -262,7 +286,7 @@ function Holdings() {
               const dayChg = h.changePct ?? 0;
               return (
                 <tr key={h.id}>
-                  <td><input type="checkbox"/></td>
+                  <td><input type="checkbox" checked={selectedIds.has(h.id)} onChange={() => toggleSel(h.id)}/></td>
                   <td>
                     <span className="mono" style={{fontSize:12, display:'inline-flex', alignItems:'center', gap:6}}>
                       {h.symbol}
