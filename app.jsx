@@ -44,17 +44,41 @@ const BREADCRUMBS = {
   settings:  ['配置顧問', '個人設定'],
 };
 
+const THEME_KEY = 'ai-advisor-theme-v1';
+function resolveInitialTheme() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === 'dark' || saved === 'light') return saved;
+  const mql = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+  return mql && mql.matches ? 'light' : TWEAK_DEFAULS.theme;
+}
+
 function App() {
   // persistent route
   const [current, setCurrent] = useState(() => localStorage.getItem('page') || 'dashboard');
   const [risk, setRisk]       = useState(TWEAK_DEFAULS.risk);
-  const [theme, setTheme]     = useState(TWEAK_DEFAULS.theme);
+  const [theme, setThemeState] = useState(resolveInitialTheme);
+  const setTheme = (v) => {
+    const next = typeof v === 'function' ? v(theme) : v;
+    setThemeState(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch {}
+  };
   const [density, setDensity] = useState(TWEAK_DEFAULS.density);
   const [tweaksOpen, setTweaksOpen] = useState(false);
 
   useEffect(() => { localStorage.setItem('page', current); }, [current]);
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
   useEffect(() => { document.documentElement.setAttribute('data-density', density); }, [density]);
+
+  // Follow OS theme changes only if user hasn't explicitly chosen.
+  useEffect(() => {
+    const mql = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)');
+    if (!mql) return;
+    const onChange = (e) => {
+      if (!localStorage.getItem(THEME_KEY)) setThemeState(e.matches ? 'light' : 'dark');
+    };
+    mql.addEventListener ? mql.addEventListener('change', onChange) : mql.addListener(onChange);
+    return () => mql.removeEventListener ? mql.removeEventListener('change', onChange) : mql.removeListener(onChange);
+  }, []);
 
   const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => {
