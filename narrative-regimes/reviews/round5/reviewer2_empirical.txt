@@ -1,0 +1,142 @@
+Reviewer #2 (Empirical Finance / Monte-Carlo Design) -- ROUND 5
+Manuscript: "Narrative Regimes: LLM-Augmented Strategic Asset Allocation
+for Long-Horizon Investors"
+Venue: Decision Support Systems
+
+==================================================================
+SUMMARY
+==================================================================
+Round 4 was an unconditional ACCEPT with one forward-looking remark
+asking that the single-seed transaction-cost prose be replaced by a
+proper multi-path Monte-Carlo table. The authors have now delivered
+that remediation (table_tc.csv now contains a full 12-path MC grid
+across 5 tc_bps levels) and have added a genuinely new Section 5.2
+describing a 30-iteration greedy configuration sweep, along with a
+new NarrativeRegimesV2 column in Table 1. My task this round is to
+re-verify every number and to scrutinise the sweep's statistical
+design. On balance the new content is honest, the numbers reconcile
+to the CSVs with rounding, and the data-snooping risk has been
+handled cleanly via disjoint seed ranges.
+
+==================================================================
+STATUS OF PREVIOUS-ROUND COMMENTS
+==================================================================
+* (R4 remark) Multi-path TC table: RESOLVED. table_tc.csv contains 12
+  paths x 5 tc_bps x 3 strategies = 180 rows. NR CRRA-CE means
+  0.0366/0.0363/0.0359/0.0353/0.0333 at tc=0/5/10/20/50 match the
+  paper prose exactly. Sharpe slides 0.40 -> 0.36; matches.
+* Turnover claim in the new TC paragraph (5.3% / 3.3% / 2.7% for
+  NR/RP/60-40): CSV gives 5.30% / 3.26% / 2.65%. Matches (rounds
+  cleanly).
+* All five round-2 concerns (seed pre-registration, paired SE, rolling-
+  MV hyperparameters, mis-specified-likelihood robustness, scope of
+  SNR adoption threshold) remain intact.
+
+==================================================================
+NEW MAJOR COMMENTS
+==================================================================
+M1. Data-snooping risk on iterated variant -- PASSES AUDIT.
+iterate_roi.py (lines 60-79, 199-221) uses seed_base = 2000, i.e.
+seeds {2000..2011}. run_all.py uses: main experiment seeds {100..129},
+SNR seeds {500..519}, TC seeds {900..911}, gamma seeds {1300..1311},
+and the representative-posterior plot seed 42. Therefore the 30 greedy
+iterations never touch the seeds that drive Table 1 / Figure 2. The
+iterated variant is then reported on the main-table seeds {100..129}
+through experiment_main() -> one_path_v2() -> best_config.json. This
+is exactly the hold-out-evaluation protocol the greedy search demands,
+and it is what makes the +27 bp CRRA-CE claim credible. I commend the
+authors explicitly: many Monte-Carlo portfolio papers ship a "tuned
+variant" that was silently selected on the same seeds it is reported
+on; this one does not.
+
+M2. Sample size of the greedy selector (12 paths) is borderline.
+run_one_iteration() evaluates each of 30 candidate configs on n=12
+paths. The CRRA-CE standard errors in iteration_log.csv are ~28-35 bp
+per candidate, and the headline improvement from vol-targeting
+(#15: 0.03093 vs baseline 0.02902) is +19 bp -- below one SE. The
+greedy criterion thus partly sampled noise on intermediate
+acceptances. The paper already disarms this honestly ("gains are
+concentrated in the volatility-targeting block... consistent with the
+literature that over-engineered allocators tend to over-fit"), and
+the hold-out evaluation on {100..129} shows a genuine gain (0.0304
+vs 0.0277, +27 bp, SE 0.002). I therefore flag this as *disclosed*
+not as a defect, but the authors should (minor revision) add one
+sentence in Section 5.2 noting that individual greedy-step SEs are
+~28 bp so intermediate acceptances carry meaningful sampling noise,
+and that the +27 bp hold-out gain on disjoint seeds is the load-
+bearing figure -- not any single in-sweep improvement.
+
+M3. TC table adequately sized. 12 paths x 5 tc levels with common
+seeds (900..911) for NR / RP / 60-40 is paired and sufficient for
+the claim made (monotone decay of 3 bp per 5 bps of tc, totalling
+33 bp over the range). The monotonicity is clean in every path (I
+spot-checked seeds 900 and 911), so noise concerns do not materially
+affect the conclusion.
+
+M4. Gamma table fairness. table_gamma.csv uses seeds 1300..1311 with
+NR/RP/60-40 all evaluated on identical returns -- paired. The
+dominance claim that NR's lead over 60/40 widens with gamma is
+supported numerically (NR-60/40 CRRA gap: +0.0046 at gamma=2, +0.0161
+at gamma=5, +0.0366 at gamma=10). The paper claim is honest.
+
+M5. Abstract number audit. "+11.0 pp (SE 2.8 pp)" accuracy: CSV
+table_accuracy and main MC give 0.608 vs 0.498 = +11.0 pp; pooled SE
+from the two SDs (0.160 and 0.222) over 30 paths is
+sqrt((0.160^2+0.222^2)/30) = 0.050 -- but the paired SE across 30
+seeds on the paired difference yields ~0.028 pp, matching. Abstract
+Sharpe 0.30 (SE 0.04) matches 0.302 (SE 0.035). Iterated Sharpe 0.32
+matches 0.3203. All seven main-table strategies round cleanly.
+
+==================================================================
+MINOR COMMENTS
+==================================================================
+m1. iteration_log.csv column order: crra_ce_annual_se is computed as
+sd/sqrt(n_paths). This is a path-level MC SE (no blocking); if any
+within-path serial dependence exists, this could mildly understate
+uncertainty. Fine for the sweep; no change required.
+
+m2. Section 5.2 says "Nine of the thirty changes were accepted."
+iteration_log.csv shows 10 True entries (iter 0 baseline + iters
+1,2,5,7,8,9,10,14,15). Excluding the baseline bookkeeping row, nine
+proposed changes were accepted. Statement is correct; consider
+parenthetical "(excluding the baseline bookkeeping row)" for clarity.
+
+m3. Iterations #10 and #16 and #24 return identical metrics to their
+immediate predecessors (e.g. #10 == #09). This is visible in
+iteration_log.csv and suggests those toggles were no-ops on the then-
+current best_cfg (regime_gamma already implicit under use_regime_gamma
+logic; CVaR cap never bound). Worth a footnote for reproducibility.
+
+m4. The TC paragraph quotes "averaging over 12 Monte-Carlo paths" --
+consistent with table_tc.csv. Good. Recommend adding a column-level
+MC SE in the next release draft so readers can see the ~30 bp per-
+cell uncertainty directly.
+
+m5. Paper line 519: "weight-inertia smoother (lambda=0.7)" --
+allocator_v2 default is 0.70 but the best_config has lambda=0.85 and
+the baseline used in the paper is 0.70. The prose is correct for the
+baseline row but could confuse readers into thinking the iterated
+variant shares that smoother. Suggest wording "the baseline's
+weight-inertia smoother (lambda=0.7); the iterated variant tightens
+this to 0.85."
+
+==================================================================
+RECOMMENDATION
+==================================================================
+ACCEPT (no further major revision required).
+
+==================================================================
+JUSTIFICATION
+==================================================================
+The new Section 5.2 and the regenerated Tables 1, 3, 4 all
+reconcile to the shipped CSVs without embellishment. The greedy
+sweep -- the one piece that introduces data-snooping risk -- is
+evaluated on a seed range (2000..2011) fully disjoint from every
+reporting seed range in run_all.py, so the +27 bp CRRA-CE gain of
+NarrativeRegimesV2 over the baseline on main-table seeds (100..129)
+is a legitimate out-of-sweep improvement. The authors additionally
+self-regulate the claim by noting that most composite enhancements
+were *rejected* and that the improvement is concentrated in
+shrinkage + vol targeting -- which matches what the CSV shows. My
+round-4 ACCEPT stands and is strengthened by the honest treatment
+of the new material. The minor comments are stylistic.
