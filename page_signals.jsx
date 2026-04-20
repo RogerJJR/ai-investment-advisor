@@ -1,4 +1,24 @@
 // Signals / Adjustment timing page
+const SIGNAL_STATE_KEY = 'ai-advisor-signal-state-v1';
+
+function loadSignalState() {
+  try {
+    const raw = localStorage.getItem(SIGNAL_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    const now = Date.now();
+    const cleaned = {};
+    Object.entries(parsed).forEach(([k, v]) => {
+      if (v.status === 'snoozed' && v.until && v.until < now) return;
+      cleaned[k] = v;
+    });
+    return cleaned;
+  } catch { return {}; }
+}
+function saveSignalState(state) {
+  try { localStorage.setItem(SIGNAL_STATE_KEY, JSON.stringify(state)); } catch {}
+}
+
 function Signals() {
   const [userHoldings] = useHoldings();
   const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
@@ -8,21 +28,44 @@ function Signals() {
   const totalMV = RT.totalValueTWD(holdings, usdTwd);
   const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
 
-  const signals = status === 'live'
+  const [sigState, setSigState] = React.useState(loadSignalState);
+  const [tab, setTab] = React.useState('pending'); // pending | handled | skipped
+
+  const allSignals = status === 'live'
     ? [
         ...RT.generateAllocationSignals(liveAllocation, totalMV),
         ...DATA.signals.filter(s => s.type !== 'rebalance' && s.type !== 'concentration'),
       ]
     : DATA.signals;
 
-  const [selectedId, setSelectedId] = React.useState(null);
-  const selected = signals.find(s => s.id === selectedId) || signals[0] || DATA.signals[0];
-
-  const counts = {
-    high: signals.filter(s => s.level === 'high').length,
-    medium: signals.filter(s => s.level === 'medium').length,
-    low: signals.filter(s => s.level === 'low').length,
+  const setOne = (id, entry) => {
+    const next = { ...sigState };
+    if (entry === null) delete next[id]; else next[id] = entry;
+    setSigState(next);
+    saveSignalState(next);
   };
+
+  const statusOf = (id) => sigState[id]?.status || 'pending';
+
+  const signals = allSignals.filter(s => {
+    const st = statusOf(s.id);
+    if (tab === 'pending') return st === 'pending';
+    if (tab === 'handled') return st === 'handled';
+    if (tab === 'skipped') return st === 'skipped' || st === 'snoozed';
+    return true;
+  });
+
+  const [selectedId, setSelectedId] = React.useState(null);
+  const selected = signals.find(s => s.id === selectedId) || signals[0] || allSignals[0] || DATA.signals[0];
+
+  const pendingAll = allSignals.filter(s => statusOf(s.id) === 'pending');
+  const counts = {
+    high:   pendingAll.filter(s => s.level === 'high').length,
+    medium: pendingAll.filter(s => s.level === 'medium').length,
+    low:    pendingAll.filter(s => s.level === 'low').length,
+  };
+  const handledCount = allSignals.filter(s => statusOf(s.id) === 'handled').length;
+  const skippedCount = allSignals.filter(s => ['skipped','snoozed'].includes(statusOf(s.id))).length;
 
   return (
     <>
@@ -40,9 +83,9 @@ function Signals() {
       {/* Summary row */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'var(--density-gap)', marginBottom:'var(--density-gap)'}}>
         {[
-          { label:'待處理訊號', value:String(signals.length), sub:`${counts.high} 高 · ${counts.medium} 中 · ${counts.low} 低`, color:'var(--text-0)' },
-          { label:'已執行 (本月)', value:'7', sub:'累計節省 NT$4,280 成本', color:'var(--pos)' },
-          { label:'暫不處理', value:'3', sub:'將於 14 天後重新評估', color:'var(--text-2)' },
+          { label:'待處理訊號', value:String(pendingAll.length), sub:`${counts.high} 高 · ${counts.medium} 中 · ${counts.low} 低`, color:'var(--text-0)' },
+          { label:'已處理', value:String(handledCount), sub:'採納或自行處理', color:'var(--pos)' },
+          { label:'略過 / 暫停', value:String(skippedCount), sub:'到期後重新評估', color:'var(--text-2)' },
           { label:'行情連線', value: status==='live'?'即時':status==='loading'?'連線中':status==='error'?'離線':'待連線', sub: updatedAt ? `更新 ${RT.relTime(updatedAt)}` : '每 60 秒刷新', color: status==='live'?'var(--pos)':'var(--text-2)' },
         ].map(k => (
           <div key={k.label} className="card">
@@ -60,9 +103,9 @@ function Signals() {
           <div style={{padding:'12px 14px', borderBottom:'1px solid var(--line)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
             <div className="card-title" style={{margin:0}}>全部訊號</div>
             <div className="seg" style={{transform:'scale(0.9)', transformOrigin:'right'}}>
-              <button className="active">待處理</button>
-              <button>已處理</button>
-              <button>略過</button>
+              <button className={tab==='pending'?'active':''} onClick={()=>setTab('pending')}>待處理 · {pendingAll.length}</button>
+              <button className={tab==='handled'?'active':''} onClick={()=>setTab('handled')}>已處理 · {handledCount}</button>
+              <button className={tab==='skipped'?'active':''} onClick={()=>setTab('skipped')}>略過 · {skippedCount}</button>
             </div>
           </div>
           <div>
@@ -118,11 +161,14 @@ function Signals() {
             </div>
 
             <div style={{display:'flex', gap:8}}>
-              <button className="btn primary"><Icon name="check" size={13}/>採納建議</button>
-              <button className="btn">自行處理</button>
-              <button className="btn ghost">稍後提醒</button>
+              <button className="btn primary" onClick={() => setOne(selected.id, { status:'handled', at: Date.now(), how:'adopted' })}><Icon name="check" size={13}/>採納建議</button>
+              <button className="btn" onClick={() => setOne(selected.id, { status:'handled', at: Date.now(), how:'manual' })}>自行處理</button>
+              <button className="btn ghost" onClick={() => setOne(selected.id, { status:'snoozed', at: Date.now(), until: Date.now() + 14*24*3600*1000 })}>稍後提醒 (14 天)</button>
+              {statusOf(selected.id) !== 'pending' && (
+                <button className="btn ghost" onClick={() => setOne(selected.id, null)}>恢復待處理</button>
+              )}
               <div style={{flex:1}}/>
-              <button className="btn ghost"><Icon name="close" size={13}/>略過</button>
+              <button className="btn ghost" onClick={() => setOne(selected.id, { status:'skipped', at: Date.now() })}><Icon name="close" size={13}/>略過</button>
             </div>
           </div>
 
