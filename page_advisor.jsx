@@ -1,0 +1,265 @@
+// AI Advisor page - deep
+function Advisor({ risk }) {
+  const [selectedSlice, setSelectedSlice] = React.useState('債券');
+  const [timeframe, setTimeframe] = React.useState('3M');
+
+  const target = DATA.allocation;
+  const selected = target.find(a => a.name === selectedSlice);
+  const diff = selected.target - selected.current;
+
+  return (
+    <>
+      <div className="page-head">
+        <div>
+          <h1>AI 配置建議</h1>
+          <p>基於你目前的 {DATA.holdings.length} 檔持股、風險偏好「穩健型」、以及 142 筆公開資料來源,AI 生成以下長期配置建議。</p>
+        </div>
+        <div className="actions">
+          <button className="btn"><Icon name="refresh" size={14}/>重新推論</button>
+          <button className="btn primary"><Icon name="lightning" size={14}/>一鍵套用再平衡</button>
+        </div>
+      </div>
+
+      {/* Hero - AI Recommendation */}
+      <div className="card" style={{background:'linear-gradient(180deg, var(--bg-1) 0%, var(--bg-0) 100%)', padding:24, marginBottom:'var(--density-gap)', borderLeft:'2px solid var(--accent)'}}>
+        <div style={{display:'grid', gridTemplateColumns:'auto 1fr auto', gap:28, alignItems:'center'}}>
+          <div style={{position:'relative'}}>
+            <Donut slices={target.map(a => ({ value: a.target, color: a.color }))} size={160} thick={22}/>
+            <div style={{position:'absolute', inset:0, display:'grid', placeItems:'center', textAlign:'center'}}>
+              <div>
+                <div className="mono-label">建議</div>
+                <div style={{fontSize:22, fontFamily:'var(--font-mono)', color:'var(--text-0)'}}>6:2:2</div>
+                <div style={{fontSize:10, color:'var(--text-3)'}}>股 / 債 / 另類</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:8}}>
+              <span className="chip accent"><Icon name="sparkles" size={10}/>AI 結論</span>
+              <span style={{fontSize:11, color:'var(--text-3)'}}>模型 v2.4 · 26 秒前完成推論</span>
+            </div>
+            <h2 style={{margin:'0 0 10px', fontSize:20, fontWeight:500, letterSpacing:'-0.01em', color:'var(--text-0)'}}>
+              建議分 3 個月,將配置由 <span className="mono" style={{color:'var(--warn)'}}>65/26/9</span> 漸進調整至 <span className="mono" style={{color:'var(--accent)'}}>60/28/12</span>
+            </h2>
+            <p style={{margin:0, fontSize:13, color:'var(--text-2)', lineHeight:1.7, maxWidth:720}}>
+              在 15 年投資期限與穩健風險偏好下,現階段股票占比略高於合宜區間上緣。同時,美 10Y 殖利率已回升至 4.18%,提供較佳的長期債券進場位置。建議分批將部分台股與美股轉入 BND、IEF、以及全球 ETF,降低集中度。
+            </p>
+            <div style={{display:'flex', gap:10, marginTop:14, alignItems:'center'}}>
+              <div style={{display:'flex', alignItems:'center', gap:8}}>
+                <span className="mono-label">整體信心</span>
+                <ConfidenceMeter value={78}/>
+                <span className="mono" style={{fontSize:12, color:'var(--text-0)'}}>78%</span>
+              </div>
+              <span style={{width:1, height:14, background:'var(--line)'}}/>
+              <span style={{fontSize:11, color:'var(--text-3)'}}>預估年化報酬 <b className="mono" style={{color:'var(--text-0)'}}>7.2%</b></span>
+              <span style={{fontSize:11, color:'var(--text-3)'}}>標準差 <b className="mono" style={{color:'var(--text-0)'}}>10.4%</b></span>
+              <span style={{fontSize:11, color:'var(--text-3)'}}>最大回撤 <b className="mono" style={{color:'var(--text-0)'}}>-18%</b></span>
+            </div>
+          </div>
+
+          <div style={{display:'flex', flexDirection:'column', gap:6}}>
+            <button className="btn primary" style={{width:160}}><Icon name="check" size={13}/>採納建議</button>
+            <button className="btn" style={{width:160}}>自行微調...</button>
+            <button className="btn ghost" style={{width:160, color:'var(--text-3)'}}>暫不處理</button>
+          </div>
+        </div>
+      </div>
+
+      {/* 3 columns: allocation interactive, rationale, factors */}
+      <div style={{display:'grid', gridTemplateColumns:'1.1fr 1fr', gap:'var(--density-gap)', marginBottom:'var(--density-gap)'}}>
+        {/* Allocation breakdown */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">配置細項 · 點擊類別查看推理</div>
+              <div className="card-sub">左:目前 · 右:建議 · 色塊寬度 = 比例</div>
+            </div>
+          </div>
+
+          <table className="tbl">
+            <thead>
+              <tr><th>資產類別</th><th className="num">現況</th><th></th><th className="num">建議</th><th className="num">調整</th></tr>
+            </thead>
+            <tbody>
+              {target.map(a => {
+                const d = a.target - a.current;
+                const sel = selectedSlice === a.name;
+                return (
+                  <tr key={a.name} onClick={()=>setSelectedSlice(a.name)} style={{cursor:'pointer', background: sel ? 'var(--accent-soft-2)' : undefined}}>
+                    <td>
+                      <div style={{display:'flex', alignItems:'center', gap:8}}>
+                        <span style={{width:10, height:10, borderRadius:2, background:a.color}}/>
+                        <span style={{color:'var(--text-0)', fontWeight: sel?500:400}}>{a.name}</span>
+                      </div>
+                    </td>
+                    <td className="num">{a.current.toFixed(1)}%</td>
+                    <td style={{width:120}}>
+                      <div style={{display:'flex', alignItems:'center', gap:4}}>
+                        <div style={{flex:1, height:3, background:'var(--bg-3)', borderRadius:999, position:'relative'}}>
+                          <div style={{position:'absolute', left:0, top:0, bottom:0, width:a.current*2+'%', background:a.color, borderRadius:999, opacity:0.6}}/>
+                          <div style={{position:'absolute', left: a.target*2+'%', top:-3, width:2, height:9, background:a.color}}/>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="num">{a.target}%</td>
+                    <td className="num" style={{color: d>0?'var(--pos)':d<0?'var(--neg)':'var(--text-3)'}}>{d>0?'+':''}{d.toFixed(1)}pp</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Reasoning */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <div className="card-title">推理過程 · {selectedSlice}</div>
+              <div className="card-sub">AI 如何得到這個結論 · 資料 → 因子 → 結論</div>
+            </div>
+            <span className="chip accent"><Icon name="sparkles" size={10}/>信心 82%</span>
+          </div>
+
+          <div style={{display:'flex', flexDirection:'column', gap:0}}>
+            {[
+              { step:'觀察', text:'你目前債券配置為 13.0%,低於長期穩健型目標 20%,差距 -7.0pp。', sources:['持股', 'DGBAS'] },
+              { step:'資料', text:'美 10Y 殖利率近 30 天 +22bps 至 4.18%,BND/IEF 價格相對 2024 年高點回落 4.6%。', sources:['CBOE','Fed'] },
+              { step:'因子', text:'利率上行 → 債券殖利率上升 → 長期進場風險報酬比提升。你的投資期限 15 年,足以承受短期波動。', sources:['模型'] },
+              { step:'結論', text:'建議分 3 次(12 週)加碼 BND (60%) + IEF (40%),總額約 NT$186,000。', sources:[] },
+            ].map((r, i, arr) => (
+              <div key={i} style={{display:'flex', gap:14, position:'relative', paddingBottom: i < arr.length - 1 ? 14 : 0}}>
+                <div style={{display:'flex', flexDirection:'column', alignItems:'center'}}>
+                  <div style={{width:24, height:24, borderRadius:'50%', background:'var(--accent-soft)', color:'var(--accent)', display:'grid', placeItems:'center', fontSize:10, fontWeight:600}}>{i+1}</div>
+                  {i < arr.length - 1 && <div style={{flex:1, width:1, background:'var(--line)', minHeight:20, marginTop:4}}/>}
+                </div>
+                <div style={{flex:1, paddingTop:2, paddingBottom:10}}>
+                  <div className="mono-label" style={{marginBottom:4}}>{r.step}</div>
+                  <div style={{fontSize:12, color:'var(--text-1)', lineHeight:1.6}}>{r.text}</div>
+                  {r.sources.length > 0 && (
+                    <div style={{display:'flex', gap:4, marginTop:6, flexWrap:'wrap'}}>
+                      {r.sources.map(s => <span key={s} className="source">{s}</span>)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Proposed orders */}
+      <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+        <div className="card-head">
+          <div>
+            <div className="card-title">建議執行清單</div>
+            <div className="card-sub">分 3 個月執行;點擊可調整數量或排除項目</div>
+          </div>
+          <div className="seg">
+            {['1M','3M','6M'].map(t => (
+              <button key={t} className={timeframe===t?'active':''} onClick={()=>setTimeframe(t)}>{t} 分批</button>
+            ))}
+          </div>
+        </div>
+
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>標的</th><th>動作</th>
+              <th className="num">建議股數</th>
+              <th className="num">預估金額</th>
+              <th className="num">權重變化</th>
+              <th>理由</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {DATA.rebalancePlan.map(p => {
+              const isBuy = p.action === 'buy';
+              return (
+                <tr key={p.symbol}>
+                  <td>
+                    <div style={{display:'flex', flexDirection:'column'}}>
+                      <span className="mono" style={{fontSize:12}}>{p.symbol}</span>
+                      <span style={{fontSize:11, color:'var(--text-3)'}}>{p.name}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="chip" style={{background: isBuy?'var(--pos-soft)':'var(--neg-soft)', color:isBuy?'var(--pos)':'var(--neg)', borderColor:'transparent'}}>
+                      <Icon name={isBuy?'arrow-up':'arrow-down'} size={10}/> {isBuy?'加碼':'減碼'}
+                    </span>
+                  </td>
+                  <td className="num">{p.shares}</td>
+                  <td className="num">{fmt.tw(p.amount)}</td>
+                  <td className="num" style={{color: p.pct>0?'var(--pos)':'var(--neg)'}}>{fmt.pct(p.pct)}</td>
+                  <td style={{fontSize:12, color:'var(--text-2)'}}>{p.reason}</td>
+                  <td>
+                    <div style={{display:'flex', gap:4, justifyContent:'flex-end'}}>
+                      <button className="icon-btn" style={{width:26, height:26}}><Icon name="settings" size={11}/></button>
+                      <button className="icon-btn" style={{width:26, height:26}}><Icon name="close" size={11}/></button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:16, padding:'12px 14px', background:'var(--bg-2)', borderRadius:'var(--radius)'}}>
+          <div style={{display:'flex', gap:24}}>
+            <div>
+              <div className="mono-label">總出金</div>
+              <div className="mono" style={{fontSize:16, color:'var(--neg)'}}>-NT$162,460</div>
+            </div>
+            <div>
+              <div className="mono-label">總入金</div>
+              <div className="mono" style={{fontSize:16, color:'var(--pos)'}}>+NT$334,384</div>
+            </div>
+            <div>
+              <div className="mono-label">淨支出</div>
+              <div className="mono" style={{fontSize:16, color:'var(--text-0)'}}>NT$171,924</div>
+            </div>
+            <div>
+              <div className="mono-label">預估手續費</div>
+              <div className="mono" style={{fontSize:16, color:'var(--text-2)'}}>NT$834</div>
+            </div>
+          </div>
+          <button className="btn primary"><Icon name="check" size={13}/>套用此方案</button>
+        </div>
+      </div>
+
+      {/* Factor grid */}
+      <div className="card">
+        <div className="card-head">
+          <div>
+            <div className="card-title">決策因子 · 權重分布</div>
+            <div className="card-sub">AI 在此次配置建議中各因子的影響力</div>
+          </div>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:14}}>
+          {[
+            { name:'總經環境', w:28, note:'利率上行、CPI 趨穩' },
+            { name:'估值水位', w:22, note:'S&P 本益比 21.4 偏高' },
+            { name:'技術面',   w:12, note:'台股 MACD 背離' },
+            { name:'集中度',   w:18, note:'台股權重 +8.6pp' },
+            { name:'情緒',     w: 6, note:'AAII 看多 28%' },
+            { name:'央行政策', w:10, note:'Fed data-dependent' },
+            { name:'相關性',   w: 4, note:'股債相關正向' },
+            { name:'其他',     w: 0, note:'—' },
+          ].map(f => (
+            <div key={f.name} style={{padding:12, border:'1px solid var(--line)', borderRadius:'var(--radius)'}}>
+              <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline'}}>
+                <span style={{fontSize:12, color:'var(--text-1)'}}>{f.name}</span>
+                <span className="mono" style={{fontSize:13, color:'var(--text-0)'}}>{f.w}%</span>
+              </div>
+              <div className="bar" style={{margin:'8px 0 6px'}}><span style={{width:f.w*3+'%', background: f.w>=20?'var(--accent)':'var(--text-3)'}}/></div>
+              <div style={{fontSize:10, color:'var(--text-3)'}}>{f.note}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+window.Advisor = Advisor;
