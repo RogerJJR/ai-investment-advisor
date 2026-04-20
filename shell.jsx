@@ -37,8 +37,13 @@ function Sidebar({ current, onNav }) {
           {group.items.map(item => (
             <div
               key={item.id}
+              role="link"
+              tabIndex={0}
+              aria-current={current === item.id ? 'page' : undefined}
+              aria-label={item.label}
               className={'nav-item ' + (current === item.id ? 'active' : '')}
               onClick={() => onNav(item.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNav(item.id); } }}
             >
               <Icon name={item.icon} size={15} />
               <span>{item.label}</span>

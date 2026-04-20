@@ -1,6 +1,31 @@
 // Main App
 const { useState, useEffect } = React;
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) {
+    if (typeof console !== 'undefined') console.error('[ErrorBoundary]', error, info);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{padding:40, fontFamily:'var(--font-sans)', color:'var(--text-1)'}}>
+          <h2 style={{color:'var(--neg)', marginTop:0}}>畫面發生錯誤</h2>
+          <p style={{fontSize:13, color:'var(--text-2)'}}>頁面渲染時遇到問題,你的資料仍安全保存在瀏覽器。可嘗試重新整理,若問題持續請回報。</p>
+          <pre style={{background:'var(--bg-2)', padding:12, borderRadius:8, fontSize:11, overflow:'auto', maxHeight:200}}>{String(this.state.error?.stack || this.state.error)}</pre>
+          <button className="btn primary" onClick={() => this.setState({ error: null })}>再試一次</button>
+          <button className="btn" style={{marginLeft:8}} onClick={() => location.reload()}>重新整理</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const TWEAK_DEFAULS = /*EDITMODE-BEGIN*/{
   "risk": "moderate",
   "theme": "dark",
@@ -68,7 +93,7 @@ function App() {
       <div className="main">
         <Topbar breadcrumb={BREADCRUMBS[current] || ['配置顧問']}/>
         <div className="content">
-          {renderPage()}
+          <ErrorBoundary key={current}>{renderPage()}</ErrorBoundary>
         </div>
       </div>
 
