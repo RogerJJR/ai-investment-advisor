@@ -19,6 +19,8 @@ paper/*.toc
 paper/*.synctex.gz
 paper/*.fls
 paper/*.fdb_latexmk
+paper/*.spl
+paper/main.pdf
 
 # OS cruft
 .DS_Store
