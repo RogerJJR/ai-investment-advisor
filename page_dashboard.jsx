@@ -418,6 +418,63 @@ function Dashboard({ risk }) {
         </div>
       </div>
 
+      {/* Daily top movers */}
+      {(() => {
+        const live = holdings.filter(h => h.live && h.symbol !== 'CASH' && h.changePct != null);
+        if (live.length === 0) return null;
+        const sorted = [...live].sort((a, b) => (b.changePct || 0) - (a.changePct || 0));
+        const gainers = sorted.filter(h => h.changePct > 0).slice(0, 3);
+        const losers  = sorted.filter(h => h.changePct < 0).slice(-3).reverse();
+        const renderList = (list, kind) => {
+          const color = kind === 'up' ? 'var(--pos)' : 'var(--neg)';
+          const bg    = kind === 'up' ? 'var(--pos-soft)' : 'var(--neg-soft)';
+          if (list.length === 0) return <div style={{fontSize:11, color:'var(--text-3)', padding:'8px 0'}}>今日無{kind==='up'?'上漲':'下跌'}標的</div>;
+          return list.map(h => {
+            const mv = RT.holdingMarketValueTWD(h, usdTwd);
+            const chgAmount = mv * ((h.changePct || 0) / 100);
+            return (
+              <div key={h.id} style={{display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:'var(--radius)', background:'var(--bg-2)'}}>
+                <span style={{width:28, height:28, borderRadius:4, background:bg, color, display:'grid', placeItems:'center', flexShrink:0}}>
+                  <Icon name={kind==='up'?'arrow-up':'arrow-down'} size={12}/>
+                </span>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{display:'flex', alignItems:'baseline', gap:6}}>
+                    <span className="mono" style={{fontSize:12, color:'var(--text-0)', fontWeight:500}}>{h.symbol}</span>
+                    <span style={{fontSize:11, color:'var(--text-3)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}>{h.name}</span>
+                  </div>
+                  <div style={{fontSize:10, color:'var(--text-3)'}} className="mono">{fmt.tw(mv)}</div>
+                </div>
+                <div style={{textAlign:'right'}}>
+                  <div className="mono" style={{fontSize:13, color, fontWeight:600}}>{fmt.pct(h.changePct || 0, 2)}</div>
+                  <div className="mono" style={{fontSize:10, color}}>{chgAmount>=0?'+':''}{fmt.tw(chgAmount)}</div>
+                </div>
+              </div>
+            );
+          });
+        };
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">今日漲跌榜</div>
+                <div className="card-sub">即時行情下,你的持股中變動最大的標的</div>
+              </div>
+              <span className="chip">{live.length} 檔即時</span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:14}}>
+              <div>
+                <div className="mono-label" style={{color:'var(--pos)', marginBottom:8}}>▲ 漲幅 TOP</div>
+                <div style={{display:'flex', flexDirection:'column', gap:6}}>{renderList(gainers, 'up')}</div>
+              </div>
+              <div>
+                <div className="mono-label" style={{color:'var(--neg)', marginBottom:8}}>▼ 跌幅 TOP</div>
+                <div style={{display:'flex', flexDirection:'column', gap:6}}>{renderList(losers, 'down')}</div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="disclaimer" style={{marginTop:24}}>
         本網站所有建議皆來自公開市場資料與 AI 模型推論,不構成投資建議;投資有風險,過去績效不代表未來結果。
       </div>
