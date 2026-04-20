@@ -56,6 +56,27 @@ function App() {
   useEffect(() => { document.documentElement.setAttribute('data-theme', theme); }, [theme]);
   useEffect(() => { document.documentElement.setAttribute('data-density', density); }, [density]);
 
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    const SHORTCUTS = {
+      '1': 'dashboard', '2': 'holdings', '3': 'advisor',
+      '4': 'signals',   '5': 'chat',     '6': 'sources',
+      '7': 'backtest',  '8': 'settings',
+    };
+    const onKey = (e) => {
+      const tag = (e.target?.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '?') { setHelpOpen(v => !v); return; }
+      if (e.key === 'Escape') { setHelpOpen(false); return; }
+      const next = SHORTCUTS[e.key];
+      if (next) { setCurrent(next); }
+      if (e.key === 't') { setTheme(t => t === 'dark' ? 'light' : 'dark'); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   // Tweak mode plumbing
   useEffect(() => {
     const onMsg = (e) => {
@@ -96,6 +117,31 @@ function App() {
           <ErrorBoundary key={current}>{renderPage()}</ErrorBoundary>
         </div>
       </div>
+
+      {helpOpen && (
+        <div onClick={() => setHelpOpen(false)}
+             style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', display:'grid', placeItems:'center', zIndex:1000}}>
+          <div onClick={(e) => e.stopPropagation()}
+               className="card" style={{minWidth:360, maxWidth:480, padding:24}}>
+            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14}}>
+              <h3 style={{margin:0, fontSize:16}}>鍵盤快速鍵</h3>
+              <button className="icon-btn" onClick={() => setHelpOpen(false)} aria-label="關閉"><Icon name="close" size={12}/></button>
+            </div>
+            <dl className="kv" style={{gridTemplateColumns:'1fr auto'}}>
+              <dt>1 / 2</dt><dd>儀表板 / 持股管理</dd>
+              <dt>3 / 4</dt><dd>配置建議 / 調整時機</dd>
+              <dt>5 / 6</dt><dd>對話 AI / 資料基底</dd>
+              <dt>7 / 8</dt><dd>歷史回測 / 個人設定</dd>
+              <dt>t</dt><dd>切換深色 / 淺色</dd>
+              <dt>?</dt><dd>開啟 / 關閉此說明</dd>
+              <dt>Esc</dt><dd>關閉此說明</dd>
+            </dl>
+            <p style={{fontSize:11, color:'var(--text-3)', marginTop:16, marginBottom:0}}>
+              在輸入框中時不會觸發捷徑。
+            </p>
+          </div>
+        </div>
+      )}
 
       {tweaksOpen && (
         <div className="tweaks-panel">

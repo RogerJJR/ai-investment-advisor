@@ -129,10 +129,14 @@ function Topbar({ breadcrumb }) {
           <span className={'dot ' + pulse} style={{background:statusColor, width:6, height:6, borderRadius:'50%'}}/>
           {statusLabel}
         </span>
-        <button className="icon-btn" title="搜尋"><Icon name="search" size={14} /></button>
-        <button className="icon-btn" title="通知" style={{position:'relative'}}>
+        <button className="icon-btn" title="搜尋" aria-label="搜尋"><Icon name="search" size={14} /></button>
+        <button className="icon-btn" title="通知" aria-label="通知" style={{position:'relative'}}>
           <Icon name="bell" size={14} />
           <span style={{position:'absolute', top:6, right:7, width:6, height:6, borderRadius:'50%', background:'var(--accent)'}}/>
+        </button>
+        <button className="icon-btn" title="鍵盤捷徑 (按 ?)" aria-label="鍵盤捷徑"
+                onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: '?' }))}>
+          <span className="mono" style={{fontSize:12}}>?</span>
         </button>
       </div>
     </div>
