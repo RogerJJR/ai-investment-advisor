@@ -523,6 +523,71 @@ function Dashboard({ risk }) {
         );
       })()}
 
+      {/* FX sensitivity */}
+      {(() => {
+        if (!usdTwd) return null;
+        const usdValue = holdings.reduce((s, h) => {
+          const c = h.currency || RT.inferCurrency(h.symbol);
+          if (c !== 'USD') return s;
+          return s + RT.holdingMarketValueTWD(h, usdTwd);
+        }, 0);
+        if (usdValue === 0) return null;
+        const scenarios = [
+          { label: 'USD -5%', pct: -5 },
+          { label: 'USD -2%', pct: -2 },
+          { label: '現況',    pct: 0 },
+          { label: 'USD +2%', pct: 2 },
+          { label: 'USD +5%', pct: 5 },
+        ];
+        const maxImpact = usdValue * 0.05;
+        const pctOfTotal = totalValue > 0 ? (usdValue / totalValue) * 100 : 0;
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">匯率敏感度</div>
+                <div className="card-sub">美元部位 {fmt.tw(usdValue)} (占總資產 {pctOfTotal.toFixed(1)}%) · 若 USD/TWD 變動,折算為新台幣的衝擊</div>
+              </div>
+              <span className="chip">USD/TWD · {usdTwd.toFixed(2)}</span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:10}}>
+              {scenarios.map(s => {
+                const impact = usdValue * (s.pct / 100);
+                const newRate = usdTwd * (1 + s.pct / 100);
+                const isNow = s.pct === 0;
+                const color = isNow ? 'var(--text-0)' : impact >= 0 ? 'var(--pos)' : 'var(--neg)';
+                const barH = (Math.abs(impact) / (maxImpact || 1)) * 40;
+                return (
+                  <div key={s.label} style={{
+                    padding:10, borderRadius:'var(--radius)',
+                    background: isNow ? 'var(--bg-2)' : 'var(--bg-2)',
+                    border: isNow ? '1px solid var(--accent)' : '1px solid var(--line)',
+                  }}>
+                    <div className="mono-label">{s.label}</div>
+                    <div className="mono" style={{fontSize:11, color:'var(--text-3)', marginTop:2}}>@ {newRate.toFixed(2)}</div>
+                    <div style={{height:44, display:'flex', alignItems:'flex-end', justifyContent:'center', margin:'8px 0'}}>
+                      {!isNow && (
+                        <div style={{
+                          width:18, height: Math.max(2, barH),
+                          background: color, borderRadius:2, opacity:0.7,
+                        }}/>
+                      )}
+                      {isNow && <span style={{fontSize:10, color:'var(--text-3)'}}>基準</span>}
+                    </div>
+                    <div className="mono" style={{fontSize:13, color, textAlign:'center', fontWeight:500}}>
+                      {isNow ? '—' : (impact >= 0 ? '+' : '') + fmt.tw(impact)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{fontSize:11, color:'var(--text-3)', marginTop:10, lineHeight:1.6}}>
+              匯率走勢會直接影響美元資產折算為新台幣的市值。若新台幣貶值(USD 升值),美元部位的 TWD 價值上升,反之下降。建議保持 USD 部位占比與風險偏好一致。
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="disclaimer" style={{marginTop:24}}>
         本網站所有建議皆來自公開市場資料與 AI 模型推論,不構成投資建議;投資有風險,過去績效不代表未來結果。
       </div>
