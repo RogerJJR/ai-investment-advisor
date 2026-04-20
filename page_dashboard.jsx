@@ -13,18 +13,19 @@ function Dashboard({ risk }) {
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(allTickers, { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
-  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
-  const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const usdTwd = quotes['TWD=X']?.price;
+  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
+  const totalMV = RT.totalValueTWD(holdings, usdTwd);
   const liveSignals = status === 'live'
     ? [...RT.generateAllocationSignals(liveAllocation, totalMV), ...DATA.signals.filter(s => s.type !== 'rebalance' && s.type !== 'concentration')]
     : DATA.signals;
   const absDeviation = liveAllocation.reduce((s,a) => s + Math.abs(a.current - a.target), 0);
   const needRebalance = liveAllocation.filter(a => Math.abs(a.current - a.target) >= 3).length;
 
-  const totalCost = holdings.reduce((s,h) => s + h.shares * h.cost, 0);
-  const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const totalCost = RT.totalCostTWD(holdings, usdTwd);
+  const totalValue = totalMV;
   const pnl = totalValue - totalCost;
-  const pnlPct = (pnl/totalCost)*100;
+  const pnlPct = totalCost ? (pnl/totalCost)*100 : 0;
   const ytd = 10.8;
 
   const spark = [92,94,93,96,98,97,100,103,102,105,108,107,110,112,111,114];
@@ -207,8 +208,8 @@ function Dashboard({ risk }) {
             </thead>
             <tbody>
               {holdings.slice(0,6).map(h => {
-                const mv = h.shares * h.price;
-                const pl = ((h.price - h.cost)/h.cost) * 100;
+                const mv = RT.holdingMarketValueTWD(h, usdTwd);
+                const pl = h.cost ? ((h.price - h.cost)/h.cost) * 100 : 0;
                 const comment = pl > 30 ? '評價已反映' : pl < -5 ? '建議逢低' : '持有';
                 const dayChg = h.changePct ?? 0;
                 return (

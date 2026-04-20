@@ -336,8 +336,9 @@ function Chat() {
   const macroTickers = ['^TNX', '^VIX', 'TWD=X'];
   const { quotes } = useLiveQuotes([...new Set([...tickers, ...macroTickers])], { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
-  const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);
-  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
+  const usdTwd = quotes['TWD=X']?.price;
+  const totalMV = RT.totalValueTWD(holdings, usdTwd);
+  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
 
   const [msgs, setMsgs] = React.useState([
     { role:'ai', text:'嗨,我是你的投資配置助理。你可以問我任何關於目前持股、配置、市場事件的問題,我會結合你的個人資料與即時行情回答。' },

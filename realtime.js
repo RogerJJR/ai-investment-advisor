@@ -293,14 +293,42 @@
     return { history, status, error };
   }
 
+  // Infer the trading currency of a symbol.
+  function inferCurrency(symbol) {
+    const s = (symbol || '').toUpperCase();
+    if (s === 'CASH') return 'TWD';
+    if (/^\d{4,6}$/.test(s)) return 'TWD';     // Taiwan listed
+    return 'USD';                              // default to US
+  }
+
   // Merge live quotes into DATA.holdings, producing a new array.
   function applyQuotesToHoldings(holdings, quotes) {
     return holdings.map((h) => {
       const ticker = YAHOO_MAP[h.symbol];
       const q = ticker ? quotes[ticker] : null;
-      if (!q || q.price == null) return { ...h, live: false };
-      return { ...h, price: q.price, change: q.change, changePct: q.changePct, live: true };
+      const currency = h.currency || inferCurrency(h.symbol);
+      if (!q || q.price == null) return { ...h, currency, live: false };
+      return { ...h, currency: q.currency || currency, price: q.price, change: q.change, changePct: q.changePct, live: true };
     });
+  }
+
+  // Convert a holding's market value to TWD given a USD/TWD rate.
+  function holdingMarketValueTWD(h, usdTwd) {
+    const mv = h.shares * h.price;
+    if ((h.currency || inferCurrency(h.symbol)) === 'USD' && usdTwd) return mv * usdTwd;
+    return mv;
+  }
+
+  function totalValueTWD(holdings, usdTwd) {
+    return holdings.reduce((s, h) => s + holdingMarketValueTWD(h, usdTwd), 0);
+  }
+
+  function totalCostTWD(holdings, usdTwd) {
+    return holdings.reduce((s, h) => {
+      const cost = h.shares * (h.cost || 0);
+      if ((h.currency || inferCurrency(h.symbol)) === 'USD' && usdTwd) return s + cost * usdTwd;
+      return s + cost;
+    }, 0);
   }
 
   function holdingsToTickers(holdings) {
@@ -323,11 +351,11 @@
 
   // Compute live sector allocation from holdings. Returns new array based on
   // the sector list in DATA.allocation (targets), with current% filled live.
-  function computeLiveAllocation(holdings, targets) {
-    const total = holdings.reduce((s, h) => s + h.shares * h.price, 0) || 1;
+  function computeLiveAllocation(holdings, targets, usdTwd) {
+    const total = totalValueTWD(holdings, usdTwd) || 1;
     const bySector = {};
     holdings.forEach((h) => {
-      bySector[h.sector] = (bySector[h.sector] || 0) + h.shares * h.price;
+      bySector[h.sector] = (bySector[h.sector] || 0) + holdingMarketValueTWD(h, usdTwd);
     });
     return targets.map((t) => {
       const mv = bySector[t.name] || 0;
@@ -434,6 +462,10 @@
     computeLiveAllocation,
     generateAllocationSignals,
     generateRebalancePlan,
+    inferCurrency,
+    holdingMarketValueTWD,
+    totalValueTWD,
+    totalCostTWD,
     applyQuotesToHoldings,
     holdingsToTickers,
     relTime,

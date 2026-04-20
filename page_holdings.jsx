@@ -20,17 +20,18 @@ function Holdings() {
   const [search, setSearch]   = React.useState('');
   const [filterSector, setFilterSector] = React.useState('全部');
 
-  const tickers = RT.holdingsToTickers(userHoldings);
+  const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
+  const usdTwd = quotes['TWD=X']?.price;
 
-  const totalCost = holdings.reduce((s,h) => s + h.shares * h.cost, 0);
-  const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0) || 1;
+  const totalCost = RT.totalCostTWD(holdings, usdTwd);
+  const totalValue = RT.totalValueTWD(holdings, usdTwd) || 1;
   const unrealized = totalValue - totalCost;
   const unrealizedPct = totalCost ? (unrealized / totalCost) * 100 : 0;
 
-  const holdingsWithWeight = holdings.map((h) => ({ ...h, weight: (h.shares * h.price / totalValue) * 100 }));
+  const holdingsWithWeight = holdings.map((h) => ({ ...h, weight: (RT.holdingMarketValueTWD(h, usdTwd) / totalValue) * 100 }));
   const sectorCounts = holdingsWithWeight.reduce((acc, h) => { acc[h.sector] = (acc[h.sector]||0)+1; return acc; }, {});
 
   const filtered = holdingsWithWeight.filter((h) => {
@@ -160,7 +161,7 @@ function Holdings() {
               <tr><td colSpan={11} style={{textAlign:'center', padding:32, color:'var(--text-3)'}}>沒有符合條件的持股。按右上角「新增持股」開始輸入。</td></tr>
             )}
             {filtered.map(h => {
-              const mv = h.shares * h.price;
+              const mv = RT.holdingMarketValueTWD(h, usdTwd);
               const pl = h.cost ? ((h.price - h.cost)/h.cost) * 100 : 0;
               const dayChg = h.changePct ?? 0;
               return (
