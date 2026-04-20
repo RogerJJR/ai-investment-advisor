@@ -90,7 +90,36 @@ function Dashboard({ risk }) {
         </div>
         <div className="actions">
           <button className="btn" onClick={refresh} title="重新抓取即時行情"><Icon name="refresh" size={14}/>重新整理</button>
-          <button className="btn"><Icon name="download" size={14}/>匯出月報</button>
+          <button className="btn" onClick={() => {
+            const date = new Date().toISOString().slice(0,10);
+            const lines = [];
+            lines.push(`# 投資組合月報 · ${date}`);
+            lines.push('');
+            lines.push(`總資產: ${fmt.tw(totalValue)}`);
+            lines.push(`總成本: ${fmt.tw(totalCost)}`);
+            lines.push(`未實現損益: ${fmt.tw(pnl)} (${fmt.pct(pnlPct)})`);
+            lines.push(`近 6 個月報酬: ${fmt.pct(ytd)}`);
+            lines.push(`USD/TWD: ${usdTwd ? usdTwd.toFixed(2) : '—'}`);
+            lines.push(`風險偏好: ${riskLabel || '穩健型'}`);
+            lines.push('');
+            lines.push('## 配置 vs 目標');
+            liveAllocation.forEach(a => {
+              const d = a.current - a.target;
+              lines.push(`- ${a.name}: ${a.current.toFixed(1)}% (目標 ${a.target}%, 偏離 ${d>=0?'+':''}${d.toFixed(1)}pp)`);
+            });
+            lines.push('');
+            lines.push('## 持股明細');
+            holdings.forEach(h => {
+              const mv = RT.holdingMarketValueTWD(h, usdTwd);
+              lines.push(`- ${h.symbol} ${h.name}: ${h.shares} × ${fmt.num(h.price)} = ${fmt.tw(mv)}`);
+            });
+            const blob = new Blob([lines.join('\n')], { type:'text/plain;charset=utf-8' });
+            const url  = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `portfolio-report-${date}.txt`;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }}><Icon name="download" size={14}/>匯出月報</button>
           <button className="btn primary"><Icon name="sparkles" size={14}/>產生 AI 月度摘要</button>
         </div>
       </div>
