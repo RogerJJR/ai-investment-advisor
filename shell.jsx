@@ -1,26 +1,42 @@
 // Sidebar nav + topbar
 const { useState, useEffect, useRef, useMemo } = React;
 
-const NAV = [
-  { group: '主要', items: [
-    { id: 'dashboard', label: '儀表板',       icon: 'dashboard' },
-    { id: 'holdings',  label: '持股管理',     icon: 'portfolio' },
-  ]},
-  { group: 'AI 決策', items: [
-    { id: 'advisor',   label: '配置建議',     icon: 'sparkles',  badge: 'NEW' },
-    { id: 'signals',   label: '調整時機',     icon: 'bell',      badge: '4' },
-    { id: 'chat',      label: '對話 AI',       icon: 'chat' },
-  ]},
-  { group: '資料', items: [
-    { id: 'sources',   label: '資料基底',     icon: 'database' },
-    { id: 'backtest',  label: '歷史回測',     icon: 'history' },
-  ]},
-  { group: '帳戶', items: [
-    { id: 'settings',  label: '個人設定',     icon: 'settings' },
-  ]},
-];
-
 function Sidebar({ current, onNav }) {
+  const [userHoldings] = useHoldings();
+  const tickers = useMemo(() => [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])], [userHoldings]);
+  const { quotes } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
+  const usdTwd = quotes['TWD=X']?.price;
+  const alloc = RT.computeLiveAllocation(holdings, DATA.allocation, usdTwd);
+  const totalMV = RT.totalValueTWD(holdings, usdTwd);
+  const liveSignals = RT.generateAllocationSignals(alloc, totalMV);
+
+  let sigState = {};
+  try { sigState = JSON.parse(localStorage.getItem('ai-advisor-signal-state-v1') || '{}'); } catch {}
+  const pendingCount = liveSignals.filter(s => {
+    const st = sigState[s.id]?.status;
+    return !st || st === 'pending';
+  }).length + DATA.signals.filter(s => (s.type !== 'rebalance' && s.type !== 'concentration') && !sigState[s.id]).length;
+
+  const NAV = [
+    { group: '主要', items: [
+      { id: 'dashboard', label: '儀表板',       icon: 'dashboard' },
+      { id: 'holdings',  label: '持股管理',     icon: 'portfolio' },
+    ]},
+    { group: 'AI 決策', items: [
+      { id: 'advisor',   label: '配置建議',     icon: 'sparkles' },
+      { id: 'signals',   label: '調整時機',     icon: 'bell',      badge: pendingCount > 0 ? String(pendingCount) : null },
+      { id: 'chat',      label: '對話 AI',       icon: 'chat' },
+    ]},
+    { group: '資料', items: [
+      { id: 'sources',   label: '資料基底',     icon: 'database' },
+      { id: 'backtest',  label: '歷史回測',     icon: 'history' },
+    ]},
+    { group: '帳戶', items: [
+      { id: 'settings',  label: '個人設定',     icon: 'settings' },
+    ]},
+  ];
+
   return (
     <aside className="sidebar">
       <div className="logo">
