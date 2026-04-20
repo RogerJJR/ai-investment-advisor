@@ -465,6 +465,73 @@ function Advisor({ risk }) {
         </div>
       </div>
 
+      {/* Tranche scheduler */}
+      {livePlan.length > 0 && (() => {
+        const tranches = { '1M': 1, '3M': 3, '6M': 6 }[timeframe] || 3;
+        const now = new Date();
+        const monthLabel = (offset) => {
+          const d = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+          return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
+        const schedule = Array.from({ length: tranches }, (_, i) => {
+          const share = 1 / tranches;
+          const items = livePlan.map(p => ({
+            symbol: p.symbol,
+            action: p.action,
+            shares: Math.max(1, Math.round(p.shares * share)),
+            amount: Math.round(p.amount * share),
+          }));
+          const subIn  = items.filter(x => x.action === 'buy') .reduce((s,x) => s + x.amount, 0);
+          const subOut = items.filter(x => x.action === 'sell').reduce((s,x) => s + x.amount, 0);
+          return { label: monthLabel(i), items, subIn, subOut };
+        });
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">分批執行排程 · {timeframe}</div>
+                <div className="card-sub">把總調整金額平均分成 {tranches} 批,在未來 {tranches} 個月逐月執行,可攤平進場成本與情緒風險</div>
+              </div>
+              <span className="chip accent">每期約 {fmt.tw((totalIn + totalOut) / tranches)}</span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:`repeat(${tranches}, 1fr)`, gap:10}}>
+              {schedule.map((t, idx) => (
+                <div key={idx} style={{
+                  padding:12, borderRadius:'var(--radius)', background:'var(--bg-2)',
+                  borderLeft: `2px solid ${idx === 0 ? 'var(--accent)' : 'var(--text-3)'}`,
+                }}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:8}}>
+                    <span className="mono-label" style={{color: idx === 0 ? 'var(--accent)' : 'var(--text-3)'}}>{idx === 0 ? '本月 · 第 1 期' : `第 ${idx + 1} 期`}</span>
+                    <span className="mono" style={{fontSize:11, color:'var(--text-3)'}}>{t.label}</span>
+                  </div>
+                  <div style={{display:'flex', gap:10, fontSize:11, marginBottom:8}}>
+                    <span style={{color:'var(--neg)'}}>-{fmt.tw(t.subOut)}</span>
+                    <span style={{color:'var(--pos)'}}>+{fmt.tw(t.subIn)}</span>
+                  </div>
+                  <div style={{display:'flex', flexDirection:'column', gap:4}}>
+                    {t.items.map((x, j) => (
+                      <div key={j} style={{display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--text-2)'}}>
+                        <span>
+                          <span className="mono" style={{fontSize:10, padding:'0 4px', borderRadius:2,
+                            background: x.action==='buy'?'var(--pos-soft)':'var(--neg-soft)',
+                            color: x.action==='buy'?'var(--pos)':'var(--neg)', marginRight:4,
+                          }}>{x.action==='buy'?'買':'賣'}</span>
+                          {x.symbol}
+                        </span>
+                        <span className="mono" style={{color:'var(--text-3)'}}>{x.shares} 股</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{fontSize:11, color:'var(--text-3)', marginTop:10, lineHeight:1.6}}>
+              「套用此方案」目前會一次執行全部數量;若想分批,建議每月手動執行一次本期建議,並在下個月點「重新推論」更新下一期數量。
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Rebalance history */}
       {rebalanceHistory.length > 0 && (
         <div className="card" style={{marginBottom:'var(--density-gap)'}}>
