@@ -167,6 +167,8 @@ function App() {
         </div>
       )}
 
+      <ToastHost/>
+
       {tweaksOpen && (
         <div className="tweaks-panel">
           <h3>Tweaks <button className="icon-btn" style={{width:22, height:22}} onClick={()=>setTweaksOpen(false)}><Icon name="close" size={11}/></button></h3>

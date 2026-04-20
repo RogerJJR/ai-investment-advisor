@@ -159,4 +159,59 @@ function Topbar({ breadcrumb }) {
   );
 }
 
-Object.assign(window, { Sidebar, Topbar, NAV });
+// Toast system
+const TOAST_STORE = (() => {
+  let seq = 1;
+  const listeners = new Set();
+  const state = { items: [] };
+  const notify = () => listeners.forEach(l => l(state.items));
+  const push = (t) => {
+    const id = seq++;
+    const item = { id, kind: t.kind || 'info', title: t.title || '', message: t.message || '', ttl: t.ttl ?? 3500 };
+    state.items = [...state.items, item];
+    notify();
+    if (item.ttl > 0) setTimeout(() => dismiss(id), item.ttl);
+    return id;
+  };
+  const dismiss = (id) => {
+    state.items = state.items.filter(i => i.id !== id);
+    notify();
+  };
+  return {
+    subscribe(fn) { listeners.add(fn); fn(state.items); return () => listeners.delete(fn); },
+    push, dismiss,
+  };
+})();
+
+function toast(msgOrOpts, kind = 'info') {
+  if (typeof msgOrOpts === 'string') return TOAST_STORE.push({ message: msgOrOpts, kind });
+  return TOAST_STORE.push(msgOrOpts);
+}
+toast.success = (m, title) => TOAST_STORE.push({ kind: 'success', message: m, title });
+toast.error   = (m, title) => TOAST_STORE.push({ kind: 'error',   message: m, title });
+toast.info    = (m, title) => TOAST_STORE.push({ kind: 'info',    message: m, title });
+
+function ToastHost() {
+  const [items, setItems] = useState([]);
+  useEffect(() => TOAST_STORE.subscribe(setItems), []);
+  if (!items.length) return null;
+  const iconFor = (k) => k === 'success' ? 'check' : k === 'error' ? 'alert' : 'info';
+  return (
+    <div className="toast-host" role="status" aria-live="polite">
+      {items.map(t => (
+        <div key={t.id} className={'toast ' + t.kind}>
+          <span className="toast-icon"><Icon name={iconFor(t.kind)} size={14}/></span>
+          <div className="toast-body">
+            {t.title && <div className="toast-title">{t.title}</div>}
+            <div>{t.message}</div>
+          </div>
+          <button className="toast-close" onClick={() => TOAST_STORE.dismiss(t.id)} aria-label="關閉">
+            <Icon name="close" size={10}/>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+Object.assign(window, { Sidebar, Topbar, ToastHost, toast });

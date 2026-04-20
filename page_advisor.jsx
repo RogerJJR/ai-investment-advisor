@@ -23,7 +23,7 @@ function Advisor({ risk }) {
   const fee = Math.round((totalIn + totalOut) * 0.001425);
 
   const applyPlan = () => {
-    if (livePlan.length === 0) { alert('沒有要套用的調整項目。'); return; }
+    if (livePlan.length === 0) { toast.info('沒有要套用的調整項目。'); return; }
     if (!confirm(`將套用 ${livePlan.length} 項調整到持股。確定?`)) return;
     const bySymbol = Object.fromEntries(userHoldings.map(h => [h.symbol, h]));
     livePlan.forEach(p => {
@@ -44,11 +44,11 @@ function Advisor({ risk }) {
     });
     setHoldings(Object.values(bySymbol).filter(h => h.shares > 0 || h.symbol === 'CASH'));
     setExcluded({});
-    alert('再平衡已套用。');
+    toast.success(`已套用 ${livePlan.length} 項再平衡調整`, '再平衡完成');
   };
 
   const exportPlan = () => {
-    if (livePlanAll.length === 0) { alert('目前沒有可匯出的調整項目。'); return; }
+    if (livePlanAll.length === 0) { toast.info('目前沒有可匯出的調整項目。'); return; }
     const header = ['symbol','name','action','shares','amount_twd','weight_change_pp','reason'];
     const rows = livePlanAll.map(p => [p.symbol, p.name, p.action, p.shares, p.amount, p.pct, p.reason]);
     const esc = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -59,6 +59,7 @@ function Advisor({ risk }) {
     a.href = url; a.download = `rebalance-plan-${new Date().toISOString().slice(0,10)}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast.success(`已匯出 ${livePlanAll.length} 項調整方案`, '匯出完成');
   };
 
   return (

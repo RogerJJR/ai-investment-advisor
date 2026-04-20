@@ -137,7 +137,7 @@ function Holdings() {
     reader.onload = () => {
       try {
         const rows = parseCSV(String(reader.result || ''));
-        if (!rows.length) { alert('CSV 為空或無法解析。'); return; }
+        if (!rows.length) { toast.error('CSV 為空或無法解析。'); return; }
         const imported = rows
           .filter(r => r.symbol)
           .map((r, i) => {
@@ -155,11 +155,12 @@ function Holdings() {
               weight: 0,
             };
           });
-        if (!imported.length) { alert('沒有可匯入的列(需要至少 symbol 欄位)。'); return; }
+        if (!imported.length) { toast.error('沒有可匯入的列(需要至少 symbol 欄位)。'); return; }
         const replace = confirm(`將匯入 ${imported.length} 筆。按「確定」覆蓋現有持股,「取消」合併新增。`);
         setHoldings(replace ? imported : [...userHoldings, ...imported]);
+        toast.success(`已${replace ? '覆蓋' : '合併'}匯入 ${imported.length} 筆持股`, '匯入完成');
       } catch (e) {
-        alert('CSV 解析失敗: ' + e.message);
+        toast.error('CSV 解析失敗: ' + e.message);
       }
     };
     reader.readAsText(file, 'utf-8');
