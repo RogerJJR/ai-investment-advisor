@@ -100,24 +100,34 @@ function Backtest() {
       </div>
 
       <div style={{display:'grid', gridTemplateColumns:'repeat(5, 1fr)', gap:'var(--density-gap)', marginBottom:'var(--density-gap)'}}>
-        {(stats ? [
-          { label:`${bt.years.length} 年總報酬`, value: (stats.totalRet>=0?'+':'') + stats.totalRet.toFixed(1)+'%', c: stats.totalRet>=0?'var(--pos)':'var(--neg)' },
-          { label:'年化報酬 (CAGR)', value: stats.cagr.toFixed(1)+'%', c:'var(--text-0)' },
-          { label:'最大回撤', value: stats.maxDD.toFixed(1)+'%', c:'var(--neg)' },
-          { label:'夏普比 (rf=2%)', value: stats.sharpe.toFixed(2), c:'var(--text-0)' },
-          { label:'勝率 / 年', value: stats.winRate.toFixed(0)+'%', c:'var(--pos)' },
+        {(isLive ? [
+          { label:`${bt.years.length} 年總報酬`, v: stats.totalRet, b: benchStats?.totalRet, unit:'%', c: stats.totalRet>=0?'var(--pos)':'var(--neg)' },
+          { label:'年化報酬 (CAGR)',           v: stats.cagr,     b: benchStats?.cagr,     unit:'%', c:'var(--text-0)' },
+          { label:'最大回撤',                  v: stats.maxDD,    b: benchStats?.maxDD,    unit:'%', c:'var(--neg)' },
+          { label:'夏普比 (rf=2%)',             v: stats.sharpe,   b: benchStats?.sharpe,   unit:'',  c:'var(--text-0)' },
+          { label:'勝率 / 年',                  v: stats.winRate,  b: benchStats?.winRate,  unit:'%', c:'var(--pos)' },
         ] : [
-          { label:'10 年總報酬', value:'+142%', c:'var(--pos)' },
-          { label:'年化報酬', value:'9.2%', c:'var(--text-0)' },
-          { label:'最大回撤', value:'-18.4%', c:'var(--neg)' },
-          { label:'夏普比', value:'0.72', c:'var(--text-0)' },
-          { label:'勝率 / 年', value:'80%', c:'var(--pos)' },
-        ]).map(k => (
-          <div key={k.label} className="card">
-            <div className="kpi-label">{k.label}</div>
-            <div className="mono" style={{fontSize:22, marginTop:6, color:k.c}}>{k.value}</div>
-          </div>
-        ))}
+          { label:'10 年總報酬', v:142, b:102, unit:'%', c:'var(--pos)' },
+          { label:'年化報酬',    v:9.2, b:7.1, unit:'%', c:'var(--text-0)' },
+          { label:'最大回撤',    v:-18.4, b:-22.1, unit:'%', c:'var(--neg)' },
+          { label:'夏普比',      v:0.72, b:0.58, unit:'', c:'var(--text-0)' },
+          { label:'勝率 / 年',    v:80,  b:70, unit:'%', c:'var(--pos)' },
+        ]).map(k => {
+          const fmtN = (x) => x == null ? '—' : (k.unit === '%' ? (x>=0?'+':'') + x.toFixed(1) + '%' : x.toFixed(2));
+          const delta = (k.v != null && k.b != null) ? (k.v - k.b) : null;
+          return (
+            <div key={k.label} className="card">
+              <div className="kpi-label">{k.label}</div>
+              <div className="mono" style={{fontSize:22, marginTop:6, color:k.c}}>{fmtN(k.v)}</div>
+              <div style={{fontSize:11, color:'var(--text-3)', marginTop:4}}>
+                基準 60/40: <span className="mono" style={{color:'var(--text-2)'}}>{fmtN(k.b)}</span>
+                {delta != null && <span className="mono" style={{marginLeft:6, color: delta>=0?'var(--pos)':'var(--neg)'}}>
+                  {delta>=0?'+':''}{k.unit==='%' ? delta.toFixed(1)+'pp' : delta.toFixed(2)}
+                </span>}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="card" style={{marginBottom:'var(--density-gap)'}}>
