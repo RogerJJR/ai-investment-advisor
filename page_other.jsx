@@ -443,6 +443,7 @@ const BACKUP_KEYS = [
   { key: 'ai-advisor-signal-state-v1', label: '訊號處理紀錄' },
   { key: 'ai-advisor-chat-v1',         label: '對話紀錄' },
   { key: 'ai-advisor-theme-v1',        label: '主題偏好' },
+  { key: 'ai-advisor-bookmarks-v1',    label: '資料書籤' },
 ];
 
 function BackupRestoreCard() {

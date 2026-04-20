@@ -65,8 +65,37 @@ function Sources() {
     return parts;
   };
 
+  const BOOKMARK_KEY = 'ai-advisor-bookmarks-v1';
+  const [bookmarks, setBookmarks] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(BOOKMARK_KEY) || '{}'); } catch { return {}; }
+  });
+  const [onlyBookmarked, setOnlyBookmarked] = React.useState(false);
+  const bookmarkKeyOf = (s) => String(s.id || s.title || '').slice(0, 120);
+  const toggleBookmark = (s) => {
+    const k = bookmarkKeyOf(s);
+    setBookmarks(prev => {
+      const next = { ...prev };
+      if (next[k]) {
+        delete next[k];
+        toast.info('已移除書籤');
+      } else {
+        next[k] = {
+          title: s.title, provider: s.provider, cat: s.cat,
+          link: s.link || null, savedAt: Date.now(),
+        };
+        toast.success('已加入書籤');
+      }
+      try { localStorage.setItem(BOOKMARK_KEY, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  const isBookmarked = (s) => !!bookmarks[bookmarkKeyOf(s)];
+  const bookmarkCount = Object.keys(bookmarks).length;
+
+  const finalFiltered = onlyBookmarked ? filtered.filter(isBookmarked) : filtered;
+
   const [selectedId, setSelectedId] = React.useState(null);
-  const selected = filtered.find(s => (s.id || s.title) === selectedId) || filtered[0] || DATA.sources[1];
+  const selected = finalFiltered.find(s => (s.id || s.title) === selectedId) || finalFiltered[0] || DATA.sources[1];
 
   const liveCount = liveNews.length;
   const newsStatusLabel = {
@@ -157,6 +186,21 @@ function Sources() {
                 <button key={c} className={cat===c?'active':''} onClick={()=>setCat(c)}>{c}</button>
               ))}
             </div>
+            <button
+              onClick={() => setOnlyBookmarked(v => !v)}
+              title={onlyBookmarked ? '顯示全部' : '只看已收藏'}
+              style={{
+                padding:'4px 10px', fontSize:11,
+                background: onlyBookmarked ? 'var(--accent-soft-2)' : 'var(--bg-2)',
+                border:'1px solid ' + (onlyBookmarked ? 'var(--accent)' : 'var(--line)'),
+                color: onlyBookmarked ? 'var(--accent)' : 'var(--text-2)',
+                borderRadius:6, cursor:'pointer',
+                display:'inline-flex', alignItems:'center', gap:6,
+              }}
+            >
+              <span style={{fontSize:11}}>{onlyBookmarked ? '★' : '☆'}</span>
+              書籤 {bookmarkCount > 0 && <span className="mono" style={{opacity:0.7}}>{bookmarkCount}</span>}
+            </button>
             <div style={{marginLeft:'auto', position:'relative', display:'flex', alignItems:'center'}}>
               <input
                 type="search"
@@ -185,7 +229,7 @@ function Sources() {
           </div>
           {q && (
             <div style={{padding:'6px 16px', borderBottom:'1px solid var(--line)', fontSize:10, color:'var(--text-3)', background:'var(--bg-2)'}}>
-              找到 <b style={{color:'var(--text-1)'}}>{filtered.length}</b> 則符合「<b style={{color:'var(--accent)'}}>{query}</b>」的資料
+              找到 <b style={{color:'var(--text-1)'}}>{finalFiltered.length}</b> 則符合「<b style={{color:'var(--accent)'}}>{query}</b>」的資料
             </div>
           )}
           <div>
@@ -204,14 +248,20 @@ function Sources() {
                 ))}
               </div>
             )}
-            {filtered.length === 0 && newsStatus !== 'loading' && (
+            {finalFiltered.length === 0 && newsStatus !== 'loading' && (
               <div className="empty-state">
                 <div className="empty-icon"><Icon name="database" size={18}/></div>
-                <div className="empty-title">{q ? '找不到符合的資料' : '此分類暫無資料'}</div>
-                <div>{q ? '試試其他關鍵字,或清除搜尋條件。' : '切換類別或點「同步最新」重新抓取。'}</div>
+                <div className="empty-title">
+                  {onlyBookmarked ? '尚未收藏任何資料' : q ? '找不到符合的資料' : '此分類暫無資料'}
+                </div>
+                <div>
+                  {onlyBookmarked ? '在任一則資料右上角點「☆」即可加入書籤。'
+                    : q ? '試試其他關鍵字,或清除搜尋條件。'
+                    : '切換類別或點「同步最新」重新抓取。'}
+                </div>
               </div>
             )}
-            {filtered.map((s, i) => {
+            {finalFiltered.map((s, i) => {
               const key = s.id || s.title;
               const active = (selected.id || selected.title) === key;
               return (
@@ -222,6 +272,16 @@ function Sources() {
                     <ImpactPill level={s.impact}/>
                     {s.live && <span className="chip accent" style={{fontSize:9, padding:'0 4px'}}><span className="dot pulse" style={{width:4, height:4}}/>即時</span>}
                     <span style={{fontSize:10, color:'var(--text-3)', marginLeft:'auto'}} className="mono">{s.ts}</span>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleBookmark(s); }}
+                      aria-label={isBookmarked(s) ? '移除書籤' : '加入書籤'}
+                      title={isBookmarked(s) ? '移除書籤' : '加入書籤'}
+                      style={{
+                        background:'transparent', border:0, padding:'0 2px',
+                        cursor:'pointer', fontSize:13,
+                        color: isBookmarked(s) ? 'var(--warn)' : 'var(--text-4)',
+                      }}
+                    >{isBookmarked(s) ? '★' : '☆'}</button>
                   </div>
                   <div style={{fontSize:13, color:'var(--text-0)', marginBottom:4, fontWeight:500}}>{highlight(s.title)}</div>
                   <div style={{display:'flex', gap:6, alignItems:'center'}}>
@@ -236,9 +296,23 @@ function Sources() {
 
         <div>
           <div className="card" style={{marginBottom:'var(--density-gap)'}}>
-            <div style={{display:'flex', gap:8, marginBottom:10}}>
+            <div style={{display:'flex', gap:8, marginBottom:10, alignItems:'center'}}>
               <span className="chip">{selected.cat}</span>
               <ImpactPill level={selected.impact}/>
+              <button
+                onClick={() => toggleBookmark(selected)}
+                title={isBookmarked(selected) ? '移除書籤' : '加入書籤'}
+                aria-label={isBookmarked(selected) ? '移除書籤' : '加入書籤'}
+                style={{
+                  background:'transparent', border:'1px solid var(--line)',
+                  padding:'2px 8px', fontSize:11, borderRadius:4, cursor:'pointer',
+                  color: isBookmarked(selected) ? 'var(--warn)' : 'var(--text-3)',
+                  display:'inline-flex', alignItems:'center', gap:4,
+                }}
+              >
+                <span style={{fontSize:12}}>{isBookmarked(selected) ? '★' : '☆'}</span>
+                {isBookmarked(selected) ? '已收藏' : '加入書籤'}
+              </button>
               <span className="source" style={{marginLeft:'auto'}}><b>{selected.provider}</b></span>
             </div>
             <h3 style={{margin:'0 0 10px', fontSize:15, fontWeight:500, lineHeight:1.4}}>{highlight(selected.title)}</h3>
