@@ -122,6 +122,91 @@ function Advisor({ risk }) {
         </div>
       </div>
 
+      {/* Deviation map */}
+      {(() => {
+        const MAX_SCALE = Math.max(60, ...target.map(a => Math.max(a.current, a.target)) );
+        const aligned  = target.filter(a => Math.abs(a.current - a.target) < 2).length;
+        const minor    = target.filter(a => { const d = Math.abs(a.current - a.target); return d >= 2 && d < 5; }).length;
+        const major    = target.filter(a => Math.abs(a.current - a.target) >= 5).length;
+        const absDev   = target.reduce((s,a) => s + Math.abs(a.current - a.target), 0);
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">配置偏離地圖</div>
+                <div className="card-sub">每一列:目前比例(色塊)與建議目標(▼ 標記)的距離一目了然</div>
+              </div>
+              <div style={{display:'flex', gap:14, alignItems:'center', fontSize:11}}>
+                <span style={{color:'var(--text-3)'}}>對齊 <b className="mono" style={{color:'var(--pos)'}}>{aligned}</b></span>
+                <span style={{color:'var(--text-3)'}}>輕微 <b className="mono" style={{color:'var(--warn)'}}>{minor}</b></span>
+                <span style={{color:'var(--text-3)'}}>明顯 <b className="mono" style={{color:'var(--neg)'}}>{major}</b></span>
+                <span style={{width:1, height:12, background:'var(--line)'}}/>
+                <span style={{color:'var(--text-3)'}}>總偏離 <b className="mono" style={{color:'var(--text-0)'}}>{absDev.toFixed(1)}pp</b></span>
+              </div>
+            </div>
+            <div style={{display:'flex', flexDirection:'column', gap:10}}>
+              {target.map(a => {
+                const d = a.target - a.current;
+                const absD = Math.abs(d);
+                const severity = absD < 2 ? 'aligned' : absD < 5 ? 'minor' : 'major';
+                const sevColor = { aligned:'var(--pos)', minor:'var(--warn)', major:'var(--neg)' }[severity];
+                const sevLabel = { aligned:'對齊', minor:'輕微偏離', major:'明顯偏離' }[severity];
+                const action = d > 0.5 ? '建議加碼' : d < -0.5 ? '建議減碼' : '維持';
+                const actionColor = d > 0.5 ? 'var(--pos)' : d < -0.5 ? 'var(--neg)' : 'var(--text-2)';
+                return (
+                  <div key={a.name}
+                       onClick={() => setSelectedSlice(a.name)}
+                       style={{
+                         display:'grid', gridTemplateColumns:'110px 1fr 90px 90px', gap:14,
+                         alignItems:'center', padding:'10px 12px',
+                         border:'1px solid ' + (selectedSlice === a.name ? 'var(--accent)' : 'var(--line)'),
+                         background: selectedSlice === a.name ? 'var(--accent-soft-2)' : 'var(--bg-2)',
+                         borderRadius:'var(--radius)', cursor:'pointer',
+                       }}>
+                    <div style={{display:'flex', alignItems:'center', gap:8}}>
+                      <span style={{width:10, height:10, borderRadius:2, background:a.color}}/>
+                      <span style={{fontSize:12, color:'var(--text-0)', fontWeight:500}}>{a.name}</span>
+                    </div>
+                    <div style={{position:'relative', height:18}}>
+                      <div style={{position:'absolute', inset:'7px 0', background:'var(--bg-3)', borderRadius:999}}/>
+                      <div style={{
+                        position:'absolute', left:0, top:7, bottom:7,
+                        width:(a.current / MAX_SCALE * 100)+'%',
+                        background:a.color, borderRadius:999, opacity:0.85,
+                      }}/>
+                      <div title={`目標 ${a.target}%`} style={{
+                        position:'absolute', left:`calc(${a.target / MAX_SCALE * 100}% - 5px)`,
+                        top:-1, fontSize:10, color:sevColor, lineHeight:1,
+                      }}>▼</div>
+                      <div style={{
+                        position:'absolute', left:`${a.target / MAX_SCALE * 100}%`,
+                        top:8, bottom:0, width:1, background:sevColor,
+                      }}/>
+                    </div>
+                    <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end'}}>
+                      <div className="mono" style={{fontSize:13, color:'var(--text-0)'}}>
+                        {a.current.toFixed(1)}% <span style={{color:'var(--text-3)', fontSize:10}}>/ {a.target}%</span>
+                      </div>
+                      <div className="mono" style={{fontSize:10, color: d>0?'var(--pos)':d<0?'var(--neg)':'var(--text-3)'}}>
+                        {d>=0?'+':''}{d.toFixed(1)}pp
+                      </div>
+                    </div>
+                    <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4}}>
+                      <span style={{
+                        fontSize:9, padding:'1px 6px', borderRadius:3, letterSpacing:'0.04em',
+                        background: severity === 'aligned' ? 'var(--pos-soft)' : severity === 'minor' ? 'var(--warn-soft)' : 'var(--neg-soft)',
+                        color: sevColor,
+                      }}>{sevLabel}</span>
+                      <span style={{fontSize:10, color:actionColor, fontWeight:500}}>{action}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* 3 columns: allocation interactive, rationale, factors */}
       <div style={{display:'grid', gridTemplateColumns:'1.1fr 1fr', gap:'var(--density-gap)', marginBottom:'var(--density-gap)'}}>
         {/* Allocation breakdown */}
