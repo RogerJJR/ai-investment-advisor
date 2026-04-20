@@ -444,6 +444,7 @@ const BACKUP_KEYS = [
   { key: 'ai-advisor-chat-v1',         label: '對話紀錄' },
   { key: 'ai-advisor-theme-v1',        label: '主題偏好' },
   { key: 'ai-advisor-bookmarks-v1',    label: '資料書籤' },
+  { key: 'ai-advisor-rebalance-history-v1', label: '再平衡歷史' },
 ];
 
 function BackupRestoreCard() {

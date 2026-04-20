@@ -1,8 +1,13 @@
 // AI Advisor page - deep
+const REBALANCE_HISTORY_KEY = 'ai-advisor-rebalance-history-v1';
+
 function Advisor({ risk }) {
   const [selectedSlice, setSelectedSlice] = React.useState('債券');
   const [timeframe, setTimeframe] = React.useState('3M');
   const [excluded, setExcluded] = React.useState({});
+  const [rebalanceHistory, setRebalanceHistory] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem(REBALANCE_HISTORY_KEY) || '[]'); } catch { return []; }
+  });
 
   const [userHoldings, setHoldings] = useHoldings();
   const tickers = [...new Set([...RT.holdingsToTickers(userHoldings), 'TWD=X'])];
@@ -43,8 +48,31 @@ function Advisor({ risk }) {
       }
     });
     setHoldings(Object.values(bySymbol).filter(h => h.shares > 0 || h.symbol === 'CASH'));
+
+    const absDevBefore = target.reduce((s, a) => s + Math.abs(a.current - a.target), 0);
+    const snapshot = {
+      id: 't' + Date.now().toString(36),
+      ts: Date.now(),
+      risk,
+      items: livePlan.length,
+      totalIn, totalOut, netFlow, fee,
+      absDeviationBefore: absDevBefore,
+      timeframe,
+      slices: target.map(a => ({ name: a.name, from: +a.current.toFixed(1), to: a.target })),
+      topActions: livePlan.slice(0, 3).map(p => ({ symbol: p.symbol, action: p.action, amount: p.amount })),
+    };
+    const nextHistory = [snapshot, ...rebalanceHistory].slice(0, 20);
+    setRebalanceHistory(nextHistory);
+    try { localStorage.setItem(REBALANCE_HISTORY_KEY, JSON.stringify(nextHistory)); } catch {}
     setExcluded({});
     toast.success(`已套用 ${livePlan.length} 項再平衡調整`, '再平衡完成');
+  };
+
+  const clearHistory = () => {
+    if (!confirm('確定清除所有再平衡歷史紀錄?此動作無法復原。')) return;
+    setRebalanceHistory([]);
+    try { localStorage.removeItem(REBALANCE_HISTORY_KEY); } catch {}
+    toast.info('已清除再平衡歷史紀錄');
   };
 
   const exportPlan = () => {
@@ -436,6 +464,75 @@ function Advisor({ risk }) {
           <button className="btn primary" onClick={applyPlan}><Icon name="check" size={13}/>套用此方案</button>
         </div>
       </div>
+
+      {/* Rebalance history */}
+      {rebalanceHistory.length > 0 && (
+        <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+          <div className="card-head">
+            <div>
+              <div className="card-title">再平衡歷史</div>
+              <div className="card-sub">每次套用方案後自動保存 · 保留最近 20 筆 · 僅儲存於本機瀏覽器</div>
+            </div>
+            <div style={{display:'flex', gap:8, alignItems:'center'}}>
+              <span className="chip">{rebalanceHistory.length} 筆紀錄</span>
+              <button className="btn ghost" style={{height:28, fontSize:11, color:'var(--neg)'}} onClick={clearHistory}>
+                <Icon name="trash" size={11}/>清除
+              </button>
+            </div>
+          </div>
+          <div style={{display:'flex', flexDirection:'column', gap:8}}>
+            {rebalanceHistory.slice(0, 8).map(s => {
+              const d = new Date(s.ts);
+              const dateStr = `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+              const riskLabel = { conservative:'保守', moderate:'穩健', aggressive:'積極' }[s.risk] || s.risk;
+              return (
+                <div key={s.id} style={{
+                  display:'grid', gridTemplateColumns:'150px 80px 1fr 1fr 1fr', gap:14, alignItems:'center',
+                  padding:'10px 12px', background:'var(--bg-2)', borderRadius:'var(--radius)', border:'1px solid var(--line)',
+                }}>
+                  <div>
+                    <div style={{fontSize:11, color:'var(--text-3)'}}>{dateStr}</div>
+                    <div style={{fontSize:11, color:'var(--text-1)', marginTop:2}}>{riskLabel} · {s.timeframe || '3M'}</div>
+                  </div>
+                  <div style={{textAlign:'center'}}>
+                    <div className="mono" style={{fontSize:16, color:'var(--accent)'}}>{s.items}</div>
+                    <div style={{fontSize:10, color:'var(--text-3)'}}>項調整</div>
+                  </div>
+                  <div>
+                    <div className="mono-label">出/入金</div>
+                    <div className="mono" style={{fontSize:11, marginTop:2}}>
+                      <span style={{color:'var(--neg)'}}>-{fmt.tw(s.totalOut || 0)}</span>
+                      <span style={{color:'var(--text-3)', margin:'0 4px'}}>/</span>
+                      <span style={{color:'var(--pos)'}}>+{fmt.tw(s.totalIn || 0)}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mono-label">淨流 / 手續費</div>
+                    <div className="mono" style={{fontSize:11, color:'var(--text-0)', marginTop:2}}>
+                      {fmt.tw(Math.abs(s.netFlow || 0))} · 費 {fmt.tw(s.fee || 0)}
+                    </div>
+                  </div>
+                  <div style={{fontSize:11, color:'var(--text-2)'}}>
+                    {s.topActions && s.topActions.length > 0 ? (
+                      <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
+                        {s.topActions.map((a, i) => (
+                          <span key={i} className="mono" style={{fontSize:10, padding:'1px 6px', borderRadius:3,
+                            background: a.action==='buy'?'var(--pos-soft)':'var(--neg-soft)',
+                            color: a.action==='buy'?'var(--pos)':'var(--neg)',
+                          }}>{a.action==='buy'?'買':'賣'} {a.symbol}</span>
+                        ))}
+                      </div>
+                    ) : <span style={{color:'var(--text-3)'}}>—</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {rebalanceHistory.length > 8 && (
+            <div style={{textAlign:'center', fontSize:11, color:'var(--text-3)', marginTop:10}}>還有 {rebalanceHistory.length - 8} 筆較舊紀錄</div>
+          )}
+        </div>
+      )}
 
       {/* Factor grid */}
       <div className="card">
