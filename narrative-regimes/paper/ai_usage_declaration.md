@@ -16,7 +16,7 @@ This paper was produced with substantial assistance from a large language model 
 | Software | Drafted the initial Python implementation (simulator, filter, allocator, backtest, baselines) | Inspection, debugging (including one null-byte corruption and one transaction-cost accounting bug), refactoring, and final verification |
 | Validation | Suggested Monte-Carlo paths, seeds, and robustness cuts | Ran all experiments; inspected all outputs |
 | Writing – original draft | First draft of manuscript sections and LaTeX scaffolding | Content edits, figure/table selection, narrative structure |
-| Writing – review & editing | Four internal peer-review rounds simulating external reviewers | Decided which comments to accept and implement |
+| Writing – review & editing | Five internal peer-review rounds simulating external reviewers | Decided which comments to accept and implement |
 | Visualization | Drafted plotting code | Reviewed and adjusted final figures |
 | Supervision | — | Author |
 

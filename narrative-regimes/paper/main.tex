@@ -394,26 +394,35 @@ regime-attribution of every weight change to an investment committee, at monthly
 
 \subsection{Iterated allocator variant}
 Starting from the baseline config we conducted a $30$-iteration greedy sweep over
-orthogonal enhancement toggles (Ledoit--Wolf covariance shrinkage, regime-specific risk
+orthogonal enhancement toggles (fixed-intensity diagonal covariance shrinkage---a
+Ledoit--Wolf-style proxy with $\alpha=0.2$ rather than the data-driven optimal intensity
+of \citet{WolfLedoit2004}---regime-specific risk
 aversion, entropy-confidence blending, short-horizon momentum overlay, annualised vol
 targeting, CVaR projection, Michaud resampling, Kelly scaling, risk-parity blending, and
 hyper-parameters for weight inertia and cash-equivalent floor). Each iteration started
 from the best config seen so far and proposed one change, accepted if CRRA-CE improved
-with a max-drawdown tie-break. Nine of the thirty changes were accepted (see
+with a max-drawdown tie-break. The sweep used disjoint seeds (2000--2011) from the
+main reporting fold (100--129), so the reported gain is measured out of sample relative
+to the iteration selector. Nine of the thirty changes were accepted (see
 replication artefact \texttt{results/tables/iteration\_log.csv}). The final composite,
-\emph{Narrative Regimes (iterated)}, enables LW shrinkage ($\alpha=0.2$), regime-specific
+\emph{Narrative Regimes (iterated)}, enables the fixed-alpha shrinkage proxy, regime-specific
 risk aversion, and $8\%$ annual volatility targeting, and raises $\mu$-shrinkage to $0.4$
 and weight inertia to $0.85$ with a $10\%$ cash-equivalent floor. Relative to the
-baseline it improves CRRA-CE by $+27$ bps to $3.04\%$ (SE $24$ bps), lifts Sharpe to
+baseline it improves CRRA-CE by $+27$ bps to $3.04\%$, lifts Sharpe to
 $0.32$, reduces maximum drawdown by $4$ pp to $-18.7\%$, and cuts monthly turnover
-approximately in half (from $7.5\%$ to $3.7\%$). The gains are concentrated in the
+approximately in half (from $7.5\%$ to $3.7\%$). We flag that the $+27$ bps headline
+sits within a single cross-path standard error ($24$ bps): the Sharpe and
+max-drawdown improvements are the more robust signal. The gains are concentrated in the
 volatility-targeting block: vol targeting alone (iteration \#15) delivers almost all of
 the CRRA-CE improvement, while subsequent composite enhancements (momentum overlay, CVaR
 cap, RP blend, Michaud resampling) were \emph{rejected} by the greedy criterion---a
 finding consistent with the literature that over-engineered allocators tend to
 over-fit. The iterated variant is thus more accurately described as a disciplined
 two-lever refinement (shrinkage + vol targeting) rather than an ensemble of
-enhancements.
+enhancements. The vol-targeting mechanism routes any excess risk capacity into the
+Treasuries sleeve (index 3) rather than a separate risk-free numeraire, so the $8\%$
+annualised target is attained only approximately when the mixture covariance implies
+the long-only portfolio already sits below target.
 
 \begin{table}[t]
 \centering
@@ -514,7 +523,7 @@ $\tau=0$ bps to $3.63\%$ at $\tau=5$ bps, $3.59\%$ at $\tau=10$ bps, $3.53\%$ at
 bps, and $3.33\%$ at $\tau=50$ bps; the corresponding Sharpe ratios slide from $0.40$ to
 $0.36$ over the same range (full results in \texttt{results/tables/table\_tc.csv}). Risk
 parity moves from $2.87\%$ to $2.67\%$ CRRA-CE and 60/40 from $1.64\%$ to $1.47\%$ over the
-same range, so the framework's lead over both benchmarks is preserved (79 bps over risk
+same range, so the framework's lead over both benchmarks is preserved (66 bps over risk
 parity and 186 bps over 60/40 at $\tau=50$ bps). Because the monthly turnover of the
 framework averages $5.3\%$ versus $3.3\%$ for risk parity and $2.7\%$ for 60/40, its cost
 sensitivity is modestly higher than the static benchmarks but within the same order of
