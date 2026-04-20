@@ -3,14 +3,34 @@ function Holdings() {
   const [editing, setEditing] = React.useState(null);
   const [showAdd, setShowAdd] = React.useState(false);
 
+  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const liveCount = holdings.filter(h => h.live).length;
+
+  const totalCost = holdings.reduce((s,h) => s + h.shares * h.cost, 0);
+  const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const unrealized = totalValue - totalCost;
+  const unrealizedPct = (unrealized / totalCost) * 100;
+
+  const statusLabel = {
+    idle: '待連線', loading: '連線中', live: `即時 · ${liveCount}/${holdings.length} 檔`, error: '離線 · 使用快照',
+  }[status];
+  const statusColor = status === 'live' ? 'var(--pos)' : status === 'error' ? 'var(--neg)' : 'var(--text-3)';
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1>持股管理</h1>
           <p>手動輸入或匯入券商資料。AI 會根據你的實際持股即時更新配置分析與建議。</p>
+          <div style={{display:'flex', alignItems:'center', gap:8, marginTop:6, fontSize:11, color:statusColor}}>
+            <span className={'dot ' + (status==='live'?'pulse':'')} style={{width:6, height:6, borderRadius:'50%', background:statusColor, display:'inline-block'}}/>
+            {statusLabel}{updatedAt && ` · ${RT.relTime(updatedAt)}`}
+          </div>
         </div>
         <div className="actions">
+          <button className="btn" onClick={refresh} title="重新抓取即時行情"><Icon name="refresh" size={14}/>重新整理</button>
           <button className="btn"><Icon name="upload" size={14}/>從券商匯入</button>
           <button className="btn"><Icon name="download" size={14}/>CSV / Excel</button>
           <button className="btn primary" onClick={()=>setShowAdd(true)}><Icon name="plus" size={14}/>新增持股</button>
@@ -81,18 +101,29 @@ function Holdings() {
             </tr>
           </thead>
           <tbody>
-            {DATA.holdings.map(h => {
+            {holdings.map(h => {
               const mv = h.shares * h.price;
               const pl = ((h.price - h.cost)/h.cost) * 100;
+              const dayChg = h.changePct ?? 0;
               return (
                 <tr key={h.id}>
                   <td><input type="checkbox"/></td>
-                  <td><span className="mono" style={{fontSize:12}}>{h.symbol}</span></td>
+                  <td>
+                    <span className="mono" style={{fontSize:12, display:'inline-flex', alignItems:'center', gap:6}}>
+                      {h.symbol}
+                      {h.live && <span className="dot pulse" title="即時" style={{width:5, height:5, borderRadius:'50%', background:'var(--pos)', display:'inline-block'}}/>}
+                    </span>
+                  </td>
                   <td style={{color:'var(--text-1)'}}>{h.name}</td>
                   <td><span className="chip" style={{fontSize:10}}>{h.type}</span></td>
                   <td className="num">{h.shares.toLocaleString()}</td>
                   <td className="num" style={{color:'var(--text-2)'}}>{fmt.num(h.cost)}</td>
-                  <td className="num">{fmt.num(h.price)}</td>
+                  <td className="num">
+                    <div style={{display:'flex', flexDirection:'column', alignItems:'flex-end', gap:1}}>
+                      <span>{fmt.num(h.price)}</span>
+                      {h.live && <span className="mono" style={{fontSize:10, color: dayChg>=0?'var(--pos)':'var(--neg)'}}>{fmt.pct(dayChg, 2)}</span>}
+                    </div>
+                  </td>
                   <td className="num">{fmt.tw(mv)}</td>
                   <td className="num" style={{color: pl>=0?'var(--pos)':'var(--neg)'}}>{fmt.pct(pl)}</td>
                   <td className="num">
@@ -118,15 +149,17 @@ function Holdings() {
       <div style={{marginTop:'var(--density-gap)', display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'var(--density-gap)'}}>
         <div className="card">
           <div className="card-title">總成本</div>
-          <div style={{fontSize:22, marginTop:8}} className="mono">{fmt.tw(DATA.holdings.reduce((s,h)=>s+h.shares*h.cost,0))}</div>
+          <div style={{fontSize:22, marginTop:8}} className="mono">{fmt.tw(totalCost)}</div>
         </div>
         <div className="card">
           <div className="card-title">總市值</div>
-          <div style={{fontSize:22, marginTop:8}} className="mono">{fmt.tw(DATA.holdings.reduce((s,h)=>s+h.shares*h.price,0))}</div>
+          <div style={{fontSize:22, marginTop:8}} className="mono">{fmt.tw(totalValue)}</div>
         </div>
         <div className="card">
           <div className="card-title">未實現損益</div>
-          <div style={{fontSize:22, marginTop:8, color:'var(--pos)'}} className="mono">+NT$598,740 (+26.6%)</div>
+          <div style={{fontSize:22, marginTop:8, color: unrealized>=0?'var(--pos)':'var(--neg)'}} className="mono">
+            {unrealized>=0?'+':''}{fmt.tw(unrealized)} ({fmt.pct(unrealizedPct)})
+          </div>
         </div>
       </div>
 

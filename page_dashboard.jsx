@@ -1,7 +1,12 @@
 // Dashboard page
 function Dashboard({ risk }) {
-  const totalCost = DATA.holdings.reduce((s,h) => s + h.shares * h.cost, 0);
-  const totalValue = DATA.holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const { quotes, status, updatedAt, refresh } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const liveCount = holdings.filter(h => h.live).length;
+
+  const totalCost = holdings.reduce((s,h) => s + h.shares * h.cost, 0);
+  const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0);
   const pnl = totalValue - totalCost;
   const pnlPct = (pnl/totalCost)*100;
   const ytd = 10.8;
@@ -10,14 +15,26 @@ function Dashboard({ risk }) {
 
   const riskLabel = { conservative: '保守型', moderate: '穩健型', aggressive: '積極型' }[risk];
 
+  const liveLabel = status === 'live'
+    ? `即時 · ${liveCount}/${holdings.length} 檔已連線 · ${RT.relTime(updatedAt)}`
+    : status === 'loading' ? '正在連線行情…'
+    : status === 'error' ? '行情離線,顯示快照'
+    : '待連線';
+  const liveColor = status === 'live' ? 'var(--pos)' : status === 'error' ? 'var(--neg)' : 'var(--text-3)';
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1>早安,{DATA.user.name} · 這是你的 4 月總覽</h1>
           <p>AI 已同步最新資料,整體配置相對目標有 3 項需要調整。投資期限尚餘 15 年,距離下一次再平衡建議執行日還有 12 天。</p>
+          <div style={{display:'flex', alignItems:'center', gap:8, marginTop:6, fontSize:11, color:liveColor}}>
+            <span className={'dot ' + (status==='live'?'pulse':'')} style={{width:6, height:6, borderRadius:'50%', background:liveColor, display:'inline-block'}}/>
+            {liveLabel}
+          </div>
         </div>
         <div className="actions">
+          <button className="btn" onClick={refresh} title="重新抓取即時行情"><Icon name="refresh" size={14}/>重新整理</button>
           <button className="btn"><Icon name="download" size={14}/>匯出月報</button>
           <button className="btn primary"><Icon name="sparkles" size={14}/>產生 AI 月度摘要</button>
         </div>
@@ -148,26 +165,32 @@ function Dashboard({ risk }) {
               <tr>
                 <th>標的</th><th>類別</th>
                 <th className="num">市值</th>
+                <th className="num">日漲跌</th>
                 <th className="num">損益%</th>
                 <th className="num">權重</th>
                 <th>AI 短評</th>
               </tr>
             </thead>
             <tbody>
-              {DATA.holdings.slice(0,6).map(h => {
+              {holdings.slice(0,6).map(h => {
                 const mv = h.shares * h.price;
                 const pl = ((h.price - h.cost)/h.cost) * 100;
                 const comment = pl > 30 ? '評價已反映' : pl < -5 ? '建議逢低' : '持有';
+                const dayChg = h.changePct ?? 0;
                 return (
                   <tr key={h.id}>
                     <td>
                       <div style={{display:'flex', flexDirection:'column'}}>
-                        <span className="mono" style={{fontSize:12}}>{h.symbol}</span>
+                        <span className="mono" style={{fontSize:12, display:'flex', alignItems:'center', gap:6}}>
+                          {h.symbol}
+                          {h.live && <span className="dot pulse" style={{width:5, height:5, borderRadius:'50%', background:'var(--pos)', display:'inline-block'}}/>}
+                        </span>
                         <span style={{fontSize:11, color:'var(--text-3)'}}>{h.name}</span>
                       </div>
                     </td>
                     <td><span className="chip" style={{fontSize:10}}>{h.type}</span></td>
                     <td className="num">{fmt.tw(mv)}</td>
+                    <td className="num" style={{color: dayChg>=0?'var(--pos)':'var(--neg)'}}>{h.live ? fmt.pct(dayChg, 2) : '—'}</td>
                     <td className="num" style={{color: pl>=0?'var(--pos)':'var(--neg)'}}>{fmt.pct(pl)}</td>
                     <td className="num">{h.weight.toFixed(1)}%</td>
                     <td style={{fontSize:11, color:'var(--text-2)'}}>{comment}</td>

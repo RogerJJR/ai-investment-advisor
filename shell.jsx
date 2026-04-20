@@ -59,14 +59,49 @@ function Sidebar({ current, onNav }) {
   );
 }
 
+const TOPBAR_INDICES = [
+  { sym: 'TWSE',    ticker: '^TWII',  digits: 0 },
+  { sym: 'S&P500',  ticker: '^GSPC',  digits: 0 },
+  { sym: 'NDX',     ticker: '^NDX',   digits: 0 },
+  { sym: 'USD/TWD', ticker: 'TWD=X',  digits: 2 },
+  { sym: 'GOLD',    ticker: 'GC=F',   digits: 0 },
+];
+
+const TOPBAR_FALLBACK = {
+  '^TWII':  { price: 22483, changePct: +0.42 },
+  '^GSPC':  { price: 5842,  changePct: +0.18 },
+  '^NDX':   { price: 20218, changePct: -0.31 },
+  'TWD=X':  { price: 32.18, changePct: -0.02 },
+  'GC=F':   { price: 2384,  changePct: +0.82 },
+};
+
 function Topbar({ breadcrumb }) {
-  const tickers = [
-    { sym: 'TWSE',   val: '22,483', d: +0.42, cls: 'pos' },
-    { sym: 'S&P500', val: '5,842',  d: +0.18, cls: 'pos' },
-    { sym: 'NDX',    val: '20,218', d: -0.31, cls: 'neg' },
-    { sym: 'USD/TWD',val: '32.18',  d: -0.02, cls: 'neg' },
-    { sym: 'GOLD',   val: '2,384',  d: +0.82, cls: 'pos' },
-  ];
+  const tickers = TOPBAR_INDICES.map(t => t.ticker);
+  const { quotes, status, updatedAt } = useLiveQuotes(tickers, { intervalMs: 60000 });
+
+  const renderTicker = (t) => {
+    const q = quotes[t.ticker] || TOPBAR_FALLBACK[t.ticker] || {};
+    const price = q.price;
+    const chg = q.changePct ?? 0;
+    const cls = chg >= 0 ? 'pos' : 'neg';
+    const val = price != null ? price.toLocaleString(undefined, {
+      minimumFractionDigits: t.digits, maximumFractionDigits: t.digits,
+    }) : '—';
+    return (
+      <div key={t.sym} className={'ticker-item ' + cls}>
+        <span className="sym mono">{t.sym}</span>
+        <span className="val mono">{val}</span>
+        <span className="val mono" style={{fontSize: 10, opacity: 0.7}}>{chg>=0?'+':''}{chg.toFixed(2)}%</span>
+      </div>
+    );
+  };
+
+  const statusLabel = {
+    idle: '待連線', loading: '連線中', live: '即時', error: '離線(使用快照)',
+  }[status] || status;
+  const statusColor = status === 'live' ? 'var(--pos)' : status === 'error' ? 'var(--neg)' : 'var(--text-3)';
+  const pulse = status === 'live' ? 'pulse' : '';
+
   return (
     <div className="topbar">
       <div className="breadcrumb">
@@ -80,14 +115,15 @@ function Topbar({ breadcrumb }) {
 
       <div className="topbar-right">
         <div className="ticker-strip">
-          {tickers.map(t => (
-            <div key={t.sym} className={'ticker-item ' + t.cls}>
-              <span className="sym mono">{t.sym}</span>
-              <span className="val mono">{t.val}</span>
-              <span className="val mono" style={{fontSize: 10, opacity: 0.7}}>{t.d>=0?'+':''}{t.d.toFixed(2)}%</span>
-            </div>
-          ))}
+          {TOPBAR_INDICES.map(renderTicker)}
         </div>
+        <span
+          title={updatedAt ? `更新於 ${updatedAt.toLocaleTimeString()}` : ''}
+          style={{display:'flex', alignItems:'center', gap:6, fontSize:10, color:statusColor, padding:'4px 8px', border:'1px solid var(--line)', borderRadius:4}}
+        >
+          <span className={'dot ' + pulse} style={{background:statusColor, width:6, height:6, borderRadius:'50%'}}/>
+          {statusLabel}
+        </span>
         <button className="icon-btn" title="搜尋"><Icon name="search" size={14} /></button>
         <button className="icon-btn" title="通知" style={{position:'relative'}}>
           <Icon name="bell" size={14} />
