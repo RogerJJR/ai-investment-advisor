@@ -365,6 +365,42 @@
     return out.sort((a, b) => levelRank[a.level] - levelRank[b.level]);
   }
 
+  // Generate a concrete rebalance plan from live holdings + target allocation.
+  // For each sector deviation, pick the largest holding in that sector to
+  // sell (if over-weight) or the most expensive/biggest holding to buy (if
+  // under-weight). Returns orders with symbol, name, action, shares, amount.
+  function generateRebalancePlan(holdings, allocation) {
+    const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0) || 1;
+    const plan = [];
+    allocation.forEach((a) => {
+      const delta = a.current - a.target; // positive = over-weight
+      if (Math.abs(delta) < 2) return;
+      const sectorHoldings = holdings.filter(h => h.sector === a.name && h.symbol !== 'CASH' && h.price > 0);
+      if (!sectorHoldings.length) return;
+      const amount = Math.round(Math.abs(delta) / 100 * totalMV);
+      if (delta > 0) {
+        // over-weight → sell largest holding
+        const pick = [...sectorHoldings].sort((x,y) => (y.shares*y.price) - (x.shares*x.price))[0];
+        const shares = Math.max(1, Math.floor(amount / pick.price));
+        plan.push({
+          symbol: pick.symbol, name: pick.name, action: 'sell',
+          shares, amount: shares * pick.price, pct: -Math.abs(delta),
+          reason: `${a.name}超出目標 ${Math.abs(delta).toFixed(1)}pp`,
+        });
+      } else {
+        // under-weight → buy first holding or flag to open new one
+        const pick = sectorHoldings[0];
+        const shares = Math.max(1, Math.floor(amount / pick.price));
+        plan.push({
+          symbol: pick.symbol, name: pick.name, action: 'buy',
+          shares, amount: shares * pick.price, pct: Math.abs(delta),
+          reason: `${a.name}低於目標 ${Math.abs(delta).toFixed(1)}pp`,
+        });
+      }
+    });
+    return plan;
+  }
+
   // Compute annual returns from a list of monthly close points.
   function annualReturnsFromMonthly(points) {
     const byYear = {};
@@ -397,6 +433,7 @@
     annualReturnsFromMonthly,
     computeLiveAllocation,
     generateAllocationSignals,
+    generateRebalancePlan,
     applyQuotesToHoldings,
     holdingsToTickers,
     relTime,

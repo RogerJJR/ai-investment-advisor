@@ -192,12 +192,30 @@ function Backtest() {
   );
 }
 
+const PREFS_KEY = 'ai-advisor-prefs-v1';
+function loadPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_KEY) || '{}'); } catch { return {}; }
+}
+function savePrefs(patch) {
+  const cur = loadPrefs();
+  const next = { ...cur, ...patch };
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(next)); } catch {}
+  return next;
+}
+
 function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
   const riskLevels = [
     { id:'conservative', label:'保守型', stock:30, bond:60, other:10, note:'以保本為主,接受較低報酬' },
     { id:'moderate',     label:'穩健型', stock:60, bond:30, other:10, note:'兼顧成長與保本' },
     { id:'aggressive',   label:'積極型', stock:85, bond:10, other:5,  note:'追求長期最大化,容忍大波動' },
   ];
+  const initial = React.useMemo(loadPrefs, []);
+  const [horizon, setHorizon]   = React.useState(initial.horizon ?? 15);
+  const [monthly, setMonthly]   = React.useState(initial.monthly ?? 30000);
+  const [target,  setTarget]    = React.useState(initial.target  ?? 15000000);
+  const [avoid,   setAvoid]     = React.useState(initial.avoid   ?? []);
+  React.useEffect(() => { savePrefs({ horizon, monthly, target, avoid }); }, [horizon, monthly, target, avoid]);
+  const toggleAvoid = (t) => setAvoid(avoid.includes(t) ? avoid.filter(x => x !== t) : [...avoid, t]);
   return (
     <>
       <div className="page-head">
@@ -239,24 +257,24 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
           <div style={{display:'flex', flexDirection:'column', gap:16}}>
             <div>
               <label className="field-label">投資期限</label>
-              <input type="range" min="1" max="30" defaultValue="15" style={{width:'100%', accentColor:'var(--accent)'}}/>
+              <input type="range" min="1" max="30" value={horizon} onChange={e=>setHorizon(+e.target.value)} style={{width:'100%', accentColor:'var(--accent)'}}/>
               <div style={{display:'flex', justifyContent:'space-between', fontSize:11, color:'var(--text-3)'}}>
-                <span>1 年</span><span className="mono" style={{color:'var(--accent)', fontSize:14}}>15 年</span><span>30 年</span>
+                <span>1 年</span><span className="mono" style={{color:'var(--accent)', fontSize:14}}>{horizon} 年</span><span>30 年</span>
               </div>
             </div>
             <div>
-              <label className="field-label">月定投金額</label>
-              <input className="input" defaultValue="NT$ 30,000"/>
+              <label className="field-label">月定投金額 (NT$)</label>
+              <input className="input" type="number" value={monthly} onChange={e=>setMonthly(+e.target.value||0)}/>
             </div>
             <div>
-              <label className="field-label">目標金額</label>
-              <input className="input" defaultValue="NT$ 15,000,000"/>
+              <label className="field-label">目標金額 (NT$)</label>
+              <input className="input" type="number" value={target} onChange={e=>setTarget(+e.target.value||0)}/>
             </div>
             <div>
               <label className="field-label">不願意持有的類別</label>
               <div style={{display:'flex', gap:6, flexWrap:'wrap'}}>
                 {['加密貨幣','單一個股','槓桿 ETF','衍生品','高收益債'].map(t => (
-                  <span key={t} className="chip" style={{cursor:'pointer'}}>{t}</span>
+                  <span key={t} className={'chip' + (avoid.includes(t)?' accent':'')} onClick={()=>toggleAvoid(t)} style={{cursor:'pointer'}}>{t}</span>
                 ))}
               </div>
             </div>
@@ -313,17 +331,42 @@ function Settings({ risk, setRisk, theme, setTheme, density, setDensity }) {
 }
 
 function Chat() {
+  const [userHoldings] = useHoldings();
+  const tickers = RT.holdingsToTickers(userHoldings);
+  const macroTickers = ['^TNX', '^VIX', 'TWD=X'];
+  const { quotes } = useLiveQuotes([...new Set([...tickers, ...macroTickers])], { intervalMs: 60000 });
+  const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
+  const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
+
   const [msgs, setMsgs] = React.useState([
-    { role:'ai', text:'嗨,我是你的投資配置助理。你可以問我任何關於目前持股、配置、市場事件的問題,我會結合你的個人資料回答。' },
-    { role:'user', text:'最近美債殖利率升這麼多,我的債券部位會不會繼續套牢?要不要先出場?' },
-    { role:'ai', html: true, text: `短答:<b>不建議出場,反而是長期加碼的機會</b>。<br/><br/>
-原因 3 點:<br/>
-1. 你的投資期限 15 年,短期殖利率波動對長期總報酬影響有限。<br/>
-2. 美 10Y 殖利率目前 4.18%,意味新買入的債券能鎖定相對高的票息。<br/>
-3. 你目前債券配置 13%,低於穩健型目標 20%,整體來看是「該加不該減」。<br/><br/>
-<span style="color:var(--text-3); font-size:11px">參考資料:Fed 3 月會議紀要、CBOE 殖利率曲線、你的持股 BND/IEF</span>` },
+    { role:'ai', text:'嗨,我是你的投資配置助理。你可以問我任何關於目前持股、配置、市場事件的問題,我會結合你的個人資料與即時行情回答。' },
   ]);
   const [input, setInput] = React.useState('');
+
+  const buildContext = () => {
+    const allocLine = liveAllocation.map(a => `${a.name} ${a.current.toFixed(1)}%`).join('、');
+    const targetLine = liveAllocation.map(a => `${a.name} ${a.target}%`).join('、');
+    const holdingLine = holdings.filter(h => h.symbol !== 'CASH').map(h => h.symbol).join('、');
+    const us10y = quotes['^TNX']?.price;
+    const vix   = quotes['^VIX']?.price;
+    const usdtwd= quotes['TWD=X']?.price;
+    const macro = [
+      us10y != null ? `美 10Y 殖利率 ${us10y.toFixed(2)}%` : null,
+      vix   != null ? `VIX ${vix.toFixed(1)}` : null,
+      usdtwd!= null ? `USD/TWD ${usdtwd.toFixed(2)}` : null,
+    ].filter(Boolean).join('、');
+
+    return `你是一位台灣的長期投資配置 AI 顧問。使用者資料(即時):
+- 姓名:${DATA.user.name},穩健型,投資期限 15 年,月定投 NT$30,000
+- 總資產約 ${fmt.tw(totalMV)}
+- 目前配置:${allocLine}
+- 目標配置:${targetLine}
+- 主要持股:${holdingLine}
+- 即時市場:${macro || '(行情讀取中)'}
+
+請以繁體中文回答,口吻專業但親切。回答要結構化:先「短答結論」,再列 2-3 個「原因」,最後附「參考資料」。可以用 HTML 標籤 <b>、<br/> 排版。不超過 200 字。不構成投資建議。`;
+  };
 
   const send = async () => {
     if (!input.trim()) return;
@@ -332,15 +375,7 @@ function Chat() {
     setMsgs(next);
     setInput('');
 
-    const context = `你是一位台灣的長期投資配置 AI 顧問。使用者資料:
-- 姓名:${DATA.user.name},穩健型,投資期限 15 年,月定投 NT$30,000
-- 總資產約 NT$2,847,650
-- 目前配置:美股 34.5%、台股 30.6%、全球 9.1%、債券 13.0%、原物料 6.8%、現金 5.9%
-- 目標配置:美股 30%、台股 22%、全球 12%、債券 20%、原物料 8%、現金 8%
-- 主要持股:0050、006208、2330、VT、VTI、VOO、BND、IEF、GLD
-- 市場:Fed 利率 4.25%、美 10Y 殖利率 4.18%、台灣 CPI 2.14%、USD/TWD 32.18
-
-請以繁體中文回答,口吻專業但親切。回答要結構化:先「短答結論」,再列 2-3 個「原因」,最後附「參考資料」。可以用 HTML 標籤 <b>、<br/> 排版。不超過 200 字。不構成投資建議。`;
+    const context = buildContext();
 
     try {
       const reply = await window.claude.complete({

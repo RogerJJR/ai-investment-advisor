@@ -9,8 +9,14 @@ function Advisor({ risk }) {
   const holdings = RT.applyQuotesToHoldings(userHoldings, quotes);
 
   const target = RT.computeLiveAllocation(holdings, DATA.allocation);
-  const selected = target.find(a => a.name === selectedSlice);
+  const selected = target.find(a => a.name === selectedSlice) || target[0];
   const diff = selected.target - selected.current;
+
+  const livePlan = status === 'live' ? RT.generateRebalancePlan(holdings, target) : DATA.rebalancePlan;
+  const totalOut = livePlan.filter(p => p.action === 'sell').reduce((s,p) => s + p.amount, 0);
+  const totalIn  = livePlan.filter(p => p.action === 'buy') .reduce((s,p) => s + p.amount, 0);
+  const netFlow  = totalIn - totalOut;
+  const fee = Math.round((totalIn + totalOut) * 0.001425);
 
   return (
     <>
@@ -179,7 +185,10 @@ function Advisor({ risk }) {
             </tr>
           </thead>
           <tbody>
-            {DATA.rebalancePlan.map(p => {
+            {livePlan.length === 0 && (
+              <tr><td colSpan={7} style={{textAlign:'center', padding:24, color:'var(--text-3)'}}>目前配置與目標偏離小於 2pp,不建議調整。</td></tr>
+            )}
+            {livePlan.map(p => {
               const isBuy = p.action === 'buy';
               return (
                 <tr key={p.symbol}>
@@ -214,19 +223,19 @@ function Advisor({ risk }) {
           <div style={{display:'flex', gap:24}}>
             <div>
               <div className="mono-label">總出金</div>
-              <div className="mono" style={{fontSize:16, color:'var(--neg)'}}>-NT$162,460</div>
+              <div className="mono" style={{fontSize:16, color:'var(--neg)'}}>-{fmt.tw(totalOut)}</div>
             </div>
             <div>
               <div className="mono-label">總入金</div>
-              <div className="mono" style={{fontSize:16, color:'var(--pos)'}}>+NT$334,384</div>
+              <div className="mono" style={{fontSize:16, color:'var(--pos)'}}>+{fmt.tw(totalIn)}</div>
             </div>
             <div>
-              <div className="mono-label">淨支出</div>
-              <div className="mono" style={{fontSize:16, color:'var(--text-0)'}}>NT$171,924</div>
+              <div className="mono-label">{netFlow >= 0 ? '淨支出' : '淨回收'}</div>
+              <div className="mono" style={{fontSize:16, color:'var(--text-0)'}}>{fmt.tw(Math.abs(netFlow))}</div>
             </div>
             <div>
               <div className="mono-label">預估手續費</div>
-              <div className="mono" style={{fontSize:16, color:'var(--text-2)'}}>NT$834</div>
+              <div className="mono" style={{fontSize:16, color:'var(--text-2)'}}>{fmt.tw(fee)}</div>
             </div>
           </div>
           <button className="btn primary"><Icon name="check" size={13}/>套用此方案</button>
