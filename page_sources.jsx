@@ -41,6 +41,7 @@ function Sources() {
   const cats = ['全部', '總經', '央行', '財報', '新聞', '評等', 'ETF', '技術', '情緒'];
   const [query, setQuery] = React.useState('');
   const [timeRange, setTimeRange] = React.useState('全部');
+  const [provider, setProvider] = React.useState('全部');
   const q = query.trim().toLowerCase();
   const tsOf = (s) => {
     if (s.live && liveNews) {
@@ -66,7 +67,16 @@ function Sources() {
   };
   const byCat = cat === '全部' ? allSources : allSources.filter(s => s.cat === cat);
   const byTime = timeRange === '全部' ? byCat : byCat.filter(inRange);
-  const filtered = !q ? byTime : byTime.filter(s =>
+  const byProvider = provider === '全部' ? byTime : byTime.filter(s => s.provider === provider);
+  const providerStats = React.useMemo(() => {
+    const m = {};
+    byTime.forEach(s => {
+      const p = s.provider || '未知';
+      m[p] = (m[p] || 0) + 1;
+    });
+    return Object.entries(m).sort((a,b) => b[1] - a[1]);
+  }, [byTime]);
+  const filtered = !q ? byProvider : byProvider.filter(s =>
     (s.title || '').toLowerCase().includes(q) ||
     (s.summary || '').toLowerCase().includes(q) ||
     (s.provider || '').toLowerCase().includes(q) ||
@@ -271,6 +281,36 @@ function Sources() {
           {q && (
             <div style={{padding:'6px 16px', borderBottom:'1px solid var(--line)', fontSize:10, color:'var(--text-3)', background:'var(--bg-2)'}}>
               找到 <b style={{color:'var(--text-1)'}}>{finalFiltered.length}</b> 則符合「<b style={{color:'var(--accent)'}}>{query}</b>」的資料
+            </div>
+          )}
+          {providerStats.length > 1 && (
+            <div style={{padding:'8px 16px', borderBottom:'1px solid var(--line)', display:'flex', alignItems:'center', gap:6, overflowX:'auto', background:'var(--bg-2)'}}>
+              <span className="mono-label" style={{flexShrink:0, marginRight:4}}>來源</span>
+              <button
+                onClick={() => setProvider('全部')}
+                style={{
+                  padding:'3px 8px', fontSize:10, borderRadius:4, cursor:'pointer', flexShrink:0,
+                  background: provider==='全部' ? 'var(--accent-soft-2)' : 'var(--bg-1)',
+                  border:'1px solid ' + (provider==='全部' ? 'var(--accent)' : 'var(--line)'),
+                  color: provider==='全部' ? 'var(--accent)' : 'var(--text-2)',
+                }}
+              >全部 <span className="mono" style={{opacity:0.7}}>{byTime.length}</span></button>
+              {providerStats.slice(0, 10).map(([p, count]) => (
+                <button key={p}
+                  onClick={() => setProvider(provider === p ? '全部' : p)}
+                  title={`${p} · ${count} 則`}
+                  style={{
+                    padding:'3px 8px', fontSize:10, borderRadius:4, cursor:'pointer', flexShrink:0,
+                    background: provider===p ? 'var(--accent-soft-2)' : 'var(--bg-1)',
+                    border:'1px solid ' + (provider===p ? 'var(--accent)' : 'var(--line)'),
+                    color: provider===p ? 'var(--accent)' : 'var(--text-2)',
+                    maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                  }}
+                >{p} <span className="mono" style={{opacity:0.7}}>{count}</span></button>
+              ))}
+              {providerStats.length > 10 && (
+                <span style={{fontSize:10, color:'var(--text-3)', marginLeft:4, flexShrink:0}}>+{providerStats.length - 10}</span>
+              )}
             </div>
           )}
           <div>
