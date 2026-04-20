@@ -9,9 +9,11 @@
     '0050':   '0050.TW',
     '006208': '006208.TW',
     '2330':   '2330.TW',
+    '00937B': '00937B.TW',   // 群益ESG投等債20+
     // US tickers pass through
     'VT': 'VT', 'VTI': 'VTI', 'VOO': 'VOO',
     'BND': 'BND', 'IEF': 'IEF', 'GLD': 'GLD',
+    'SLV': 'SLV', 'IAUM': 'IAUM',
     // Cash has no live price
     'CASH': null,
   };
@@ -303,8 +305,8 @@
   function inferCurrency(symbol) {
     const s = (symbol || '').toUpperCase();
     if (s === 'CASH') return 'TWD';
-    if (/^\d{4,6}$/.test(s)) return 'TWD';     // Taiwan listed
-    return 'USD';                              // default to US
+    if (/^\d{4,6}[A-Z]?$/.test(s)) return 'TWD';  // Taiwan listed (incl. bond ETFs like 00937B)
+    return 'USD';                                  // default to US
   }
 
   // Merge live quotes into DATA.holdings, producing a new array.
