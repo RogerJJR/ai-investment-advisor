@@ -426,12 +426,36 @@ function Chat() {
     }
   };
 
+  const escHtml = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const mdToHtml = (raw) => {
+    const lines = String(raw).split(/\r?\n/);
+    const out = []; let buf = []; let inList = false;
+    const flush = () => { if (buf.length) { out.push(buf.join('<br/>')); buf = []; } };
+    lines.forEach(ln => {
+      if (/^\s*[-•]\s+/.test(ln)) {
+        if (!inList) { flush(); out.push('<ul>'); inList = true; }
+        out.push('<li>' + escHtml(ln.replace(/^\s*[-•]\s+/, '')) + '</li>');
+      } else {
+        if (inList) { out.push('</ul>'); inList = false; }
+        buf.push(escHtml(ln));
+      }
+    });
+    if (inList) out.push('</ul>');
+    flush();
+    return out.join('')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>');
+  };
+  const copyText = async (text) => {
+    try { await navigator.clipboard.writeText(text); } catch {}
+  };
+
   return (
     <>
       <div className="page-head">
         <div>
           <h1>對話 AI</h1>
-          <p>用自然語言問問題。AI 會結合你的持股、風險偏好與 142 個資料來源即時回答。</p>
+          <p>用自然語言問問題。AI 會結合你的持股、風險偏好與即時行情回答。</p>
         </div>
         <div className="actions">
           <button className="btn" onClick={clearChat} title="清除對話紀錄"><Icon name="trash" size={14}/>清除</button>
@@ -441,19 +465,29 @@ function Chat() {
       <div style={{display:'grid', gridTemplateColumns:'1fr 280px', gap:'var(--density-gap)', height:'calc(100vh - 200px)'}}>
         <div className="card" style={{display:'flex', flexDirection:'column', padding:0}}>
           <div ref={scrollRef} style={{flex:1, overflowY:'auto', padding:20, display:'flex', flexDirection:'column', gap:14}}>
-            {msgs.map((m, i) => (
-              <div key={i} style={{display:'flex', gap:10, alignSelf: m.role==='user'?'flex-end':'flex-start', maxWidth:'80%'}}>
-                {m.role === 'ai' && <div style={{width:26, height:26, borderRadius:'50%', background:'var(--accent-soft)', color:'var(--accent)', display:'grid', placeItems:'center', flexShrink:0, fontSize:10, fontWeight:700}}>AI</div>}
-                <div style={{padding:'10px 14px', borderRadius: m.role==='user'? '14px 14px 2px 14px' : '2px 14px 14px 14px',
-                             background: m.role==='user' ? 'var(--accent)' : 'var(--bg-2)',
-                             color: m.role==='user' ? 'var(--bg-0)' : 'var(--text-0)',
-                             fontSize:13, lineHeight:1.65}}>
-                  {m.loading
-                    ? <span style={{display:'inline-flex', alignItems:'center', gap:8}}>正在分析 <span className="loader-dots"><i/><i/><i/></span></span>
-                    : m.html ? <span dangerouslySetInnerHTML={{__html: m.text}}/> : m.text}
+            {msgs.map((m, i) => {
+              const rendered = m.loading ? null : (m.html ? m.text : mdToHtml(m.text));
+              return (
+                <div key={i} style={{display:'flex', gap:10, alignSelf: m.role==='user'?'flex-end':'flex-start', maxWidth:'80%'}}>
+                  {m.role === 'ai' && <div style={{width:26, height:26, borderRadius:'50%', background:'var(--accent-soft)', color:'var(--accent)', display:'grid', placeItems:'center', flexShrink:0, fontSize:10, fontWeight:700}}>AI</div>}
+                  <div style={{position:'relative', padding:'10px 14px', borderRadius: m.role==='user'? '14px 14px 2px 14px' : '2px 14px 14px 14px',
+                               background: m.role==='user' ? 'var(--accent)' : 'var(--bg-2)',
+                               color: m.role==='user' ? 'var(--bg-0)' : 'var(--text-0)',
+                               fontSize:13, lineHeight:1.65}}>
+                    {m.loading
+                      ? <span style={{display:'inline-flex', alignItems:'center', gap:8}}>正在分析 <span className="loader-dots"><i/><i/><i/></span></span>
+                      : <span dangerouslySetInnerHTML={{__html: rendered}}/>}
+                    {!m.loading && m.role === 'ai' && (
+                      <button className="icon-btn" onClick={() => copyText(m.text.replace(/<[^>]+>/g,''))}
+                              aria-label="複製" title="複製"
+                              style={{position:'absolute', top:4, right:4, width:22, height:22, opacity:0.6}}>
+                        <Icon name="link" size={10}/>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div style={{padding:14, borderTop:'1px solid var(--line)'}}>
