@@ -258,6 +258,70 @@ function Dashboard({ risk }) {
         );
       })()}
 
+      {/* Goal progress */}
+      {(() => {
+        let prefs = {};
+        try { prefs = JSON.parse(localStorage.getItem('ai-advisor-prefs-v1') || '{}'); } catch {}
+        const target = Number(prefs.target) || 15000000;
+        const horizon = Number(prefs.horizon) || 15;
+        const monthly = Number(prefs.monthly) || 30000;
+        const progressPct = target ? Math.min(100, (totalValue / target) * 100) : 0;
+        const gap = Math.max(0, target - totalValue);
+        const annualRet = 0.07;
+        const monthlyRet = annualRet / 12;
+        const months = horizon * 12;
+        const fv = totalValue * Math.pow(1 + annualRet, horizon)
+                 + (monthlyRet > 0 ? monthly * ((Math.pow(1 + monthlyRet, months) - 1) / monthlyRet) : monthly * months);
+        const onTrack = fv >= target;
+        const fvPct = target ? Math.min(120, (fv / target) * 100) : 0;
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">長期目標進度</div>
+                <div className="card-sub">假設年化 7% 且每月定期投入 {fmt.tw(monthly)},預估 {horizon} 年後的資產</div>
+              </div>
+              <span className={'chip ' + (onTrack ? 'pos' : '')} style={{color: onTrack ? 'var(--pos)' : 'var(--warn)'}}>
+                <span className="dot" style={{background: onTrack ? 'var(--pos)' : 'var(--warn)'}}/>
+                {onTrack ? '達標軌跡' : '需加碼以達標'}
+              </span>
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr', gap:14, marginBottom:14}}>
+              <div>
+                <div className="mono-label">目前 / 目標</div>
+                <div style={{display:'flex', alignItems:'baseline', gap:8, marginTop:4}}>
+                  <span className="mono" style={{fontSize:18, color:'var(--text-0)'}}>{fmt.tw(totalValue)}</span>
+                  <span style={{fontSize:11, color:'var(--text-3)'}}>/ {fmt.tw(target)}</span>
+                </div>
+              </div>
+              <div>
+                <div className="mono-label">目前達成率</div>
+                <div className="mono" style={{fontSize:18, color:'var(--accent)', marginTop:4}}>{progressPct.toFixed(1)}%</div>
+              </div>
+              <div>
+                <div className="mono-label">{horizon} 年後預估</div>
+                <div className="mono" style={{fontSize:18, color: onTrack ? 'var(--pos)' : 'var(--warn)', marginTop:4}}>{fmt.tw(fv)}</div>
+              </div>
+              <div>
+                <div className="mono-label">距離目標</div>
+                <div className="mono" style={{fontSize:18, color: 'var(--text-0)', marginTop:4}}>
+                  {gap > 0 ? fmt.tw(gap) : <span style={{color:'var(--pos)'}}>已達標</span>}
+                </div>
+              </div>
+            </div>
+            <div style={{position:'relative', height:10, borderRadius:999, background:'var(--bg-3)', overflow:'hidden'}}>
+              <div style={{position:'absolute', left:0, top:0, bottom:0, width:progressPct+'%', background:'var(--accent)'}}/>
+              <div style={{position:'absolute', left:progressPct+'%', top:0, bottom:0, width:Math.max(0, Math.min(100, fvPct) - progressPct)+'%', background:'var(--accent-soft)', opacity:0.8}}/>
+            </div>
+            <div style={{display:'flex', justifyContent:'space-between', fontSize:10, color:'var(--text-3)', marginTop:6}}>
+              <span>現在 · {progressPct.toFixed(1)}%</span>
+              <span>預估 · {fvPct.toFixed(1)}%</span>
+              <span>100% 目標</span>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Row 3: Macro snapshot + holdings summary */}
       <div style={{display:'grid', gridTemplateColumns:'1fr 1.3fr', gap:'var(--density-gap)'}}>
         <div className="card">
