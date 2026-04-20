@@ -188,6 +188,46 @@ function Dashboard({ risk }) {
         </div>
       </div>
 
+      {/* Currency breakdown */}
+      {(() => {
+        const curr = holdings.reduce((acc, h) => {
+          const c = h.currency || RT.inferCurrency(h.symbol);
+          acc[c] = (acc[c] || 0) + RT.holdingMarketValueTWD(h, usdTwd);
+          return acc;
+        }, {});
+        const total = Object.values(curr).reduce((s,v) => s + v, 0) || 1;
+        const rows = Object.entries(curr).sort((a,b) => b[1]-a[1]);
+        const palette = { TWD:'var(--accent)', USD:'var(--warn)' };
+        return (
+          <div className="card" style={{marginBottom:'var(--density-gap)'}}>
+            <div className="card-head">
+              <div>
+                <div className="card-title">幣別分布</div>
+                <div className="card-sub">以即時 USD/TWD {usdTwd ? `= ${usdTwd.toFixed(2)}` : '匯率'} 換算</div>
+              </div>
+              <span className="chip">{rows.length} 種幣別</span>
+            </div>
+            <div style={{display:'flex', height:10, borderRadius:999, overflow:'hidden', marginBottom:12, background:'var(--bg-3)'}}>
+              {rows.map(([c, v]) => (
+                <div key={c} title={`${c} · ${fmt.tw(v)}`} style={{width:(v/total*100)+'%', background: palette[c] || 'var(--text-3)'}}/>
+              ))}
+            </div>
+            <div style={{display:'grid', gridTemplateColumns:`repeat(${rows.length}, 1fr)`, gap:14}}>
+              {rows.map(([c, v]) => (
+                <div key={c}>
+                  <div style={{display:'flex', alignItems:'center', gap:6, marginBottom:4}}>
+                    <span style={{width:8, height:8, borderRadius:2, background: palette[c] || 'var(--text-3)'}}/>
+                    <span className="mono-label">{c}</span>
+                  </div>
+                  <div className="mono" style={{fontSize:16, color:'var(--text-0)'}}>{fmt.tw(v)}</div>
+                  <div style={{fontSize:11, color:'var(--text-3)'}}>{(v/total*100).toFixed(1)}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Row 3: Macro snapshot + holdings summary */}
       <div style={{display:'grid', gridTemplateColumns:'1fr 1.3fr', gap:'var(--density-gap)'}}>
         <div className="card">
