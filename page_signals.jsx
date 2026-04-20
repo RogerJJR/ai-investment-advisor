@@ -1,6 +1,26 @@
 // Signals / Adjustment timing page
 function Signals() {
-  const [selected, setSelected] = React.useState(DATA.signals[0]);
+  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const { quotes, status, updatedAt } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+  const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
+
+  const signals = status === 'live'
+    ? [
+        ...RT.generateAllocationSignals(liveAllocation, totalMV),
+        ...DATA.signals.filter(s => s.type !== 'rebalance' && s.type !== 'concentration'),
+      ]
+    : DATA.signals;
+
+  const [selectedId, setSelectedId] = React.useState(null);
+  const selected = signals.find(s => s.id === selectedId) || signals[0] || DATA.signals[0];
+
+  const counts = {
+    high: signals.filter(s => s.level === 'high').length,
+    medium: signals.filter(s => s.level === 'medium').length,
+    low: signals.filter(s => s.level === 'low').length,
+  };
 
   return (
     <>
@@ -18,10 +38,10 @@ function Signals() {
       {/* Summary row */}
       <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'var(--density-gap)', marginBottom:'var(--density-gap)'}}>
         {[
-          { label:'待處理訊號', value:'4', sub:'1 高 · 1 中 · 2 低', color:'var(--text-0)' },
+          { label:'待處理訊號', value:String(signals.length), sub:`${counts.high} 高 · ${counts.medium} 中 · ${counts.low} 低`, color:'var(--text-0)' },
           { label:'已執行 (本月)', value:'7', sub:'累計節省 NT$4,280 成本', color:'var(--pos)' },
           { label:'暫不處理', value:'3', sub:'將於 14 天後重新評估', color:'var(--text-2)' },
-          { label:'下次掃描', value:'42 分鐘', sub:'每 4 小時一次', color:'var(--accent)' },
+          { label:'行情連線', value: status==='live'?'即時':status==='loading'?'連線中':status==='error'?'離線':'待連線', sub: updatedAt ? `更新 ${RT.relTime(updatedAt)}` : '每 60 秒刷新', color: status==='live'?'var(--pos)':'var(--text-2)' },
         ].map(k => (
           <div key={k.label} className="card">
             <div className="kpi-label">{k.label}</div>
@@ -44,16 +64,17 @@ function Signals() {
             </div>
           </div>
           <div>
-            {DATA.signals.map(s => {
+            {signals.map(s => {
               const active = selected.id === s.id;
               const color = s.level === 'high' ? 'var(--neg)' : s.level === 'medium' ? 'var(--warn)' : s.level === 'low' ? 'var(--accent)' : 'var(--text-3)';
               return (
-                <div key={s.id} onClick={()=>setSelected(s)}
+                <div key={s.id} onClick={()=>setSelectedId(s.id)}
                      style={{padding:'14px', borderBottom:'1px solid var(--line)', cursor:'pointer', borderLeft: active?`2px solid var(--accent)`:'2px solid transparent', background: active?'var(--accent-soft-2)':'transparent'}}>
                   <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4}}>
                     <div style={{display:'flex', gap:6, alignItems:'center'}}>
                       <span style={{width:6, height:6, borderRadius:'50%', background:color}}/>
                       <span className="mono-label" style={{color}}>{s.level === 'info' ? '訊息' : s.level === 'high' ? '高優先' : s.level === 'medium' ? '中優先' : '低優先'}</span>
+                      {s.live && <span className="chip accent" style={{fontSize:9, padding:'0 4px'}}><span className="dot pulse" style={{width:4, height:4}}/>即時</span>}
                     </div>
                     <span style={{fontSize:10, color:'var(--text-3)'}}>{s.time}</span>
                   </div>

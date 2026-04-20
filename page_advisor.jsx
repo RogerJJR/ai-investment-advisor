@@ -3,7 +3,11 @@ function Advisor({ risk }) {
   const [selectedSlice, setSelectedSlice] = React.useState('債券');
   const [timeframe, setTimeframe] = React.useState('3M');
 
-  const target = DATA.allocation;
+  const tickers = RT.holdingsToTickers(DATA.holdings);
+  const { quotes, status } = useLiveQuotes(tickers, { intervalMs: 60000 });
+  const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
+
+  const target = RT.computeLiveAllocation(holdings, DATA.allocation);
   const selected = target.find(a => a.name === selectedSlice);
   const diff = selected.target - selected.current;
 

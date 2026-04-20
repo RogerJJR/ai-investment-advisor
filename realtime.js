@@ -200,6 +200,52 @@
     return `${h} 小時前`;
   }
 
+  // ── Live allocation + signal generation ──────────────────────
+
+  // Compute live sector allocation from holdings. Returns new array based on
+  // the sector list in DATA.allocation (targets), with current% filled live.
+  function computeLiveAllocation(holdings, targets) {
+    const total = holdings.reduce((s, h) => s + h.shares * h.price, 0) || 1;
+    const bySector = {};
+    holdings.forEach((h) => {
+      bySector[h.sector] = (bySector[h.sector] || 0) + h.shares * h.price;
+    });
+    return targets.map((t) => {
+      const mv = bySector[t.name] || 0;
+      return { ...t, current: (mv / total) * 100, mv };
+    });
+  }
+
+  // Generate dynamic signals from the live allocation deviation.
+  // Only returns items with meaningful deviation (|delta| >= 3pp).
+  function generateAllocationSignals(allocation, totalValue) {
+    const out = [];
+    allocation.forEach((a) => {
+      const delta = a.current - a.target;
+      const abs = Math.abs(delta);
+      if (abs < 3) return;
+      const over = delta > 0;
+      const level = abs >= 7 ? 'high' : abs >= 5 ? 'medium' : 'low';
+      const amount = Math.round((abs / 100) * totalValue);
+      out.push({
+        id: 'live-' + a.name,
+        level,
+        type: over ? 'concentration' : 'rebalance',
+        title: `${a.name}部位${over?'超出':'低於'}目標 ${abs.toFixed(1)} 個百分點`,
+        summary: `目前 ${a.name} 佔比 ${a.current.toFixed(1)}%(目標 ${a.target}%)。建議${over?'分批減碼':'分批加碼'}約 NT$${amount.toLocaleString()}。`,
+        confidence: Math.min(95, 60 + Math.round(abs * 3)),
+        triggers: over ? ['over-weight'] : ['under-weight'],
+        action: over ? 'sell' : 'buy',
+        magnitude: `NT$${amount.toLocaleString()}`,
+        time: '即時',
+        live: true,
+      });
+    });
+    // Sort: high first, then by magnitude
+    const levelRank = { high: 0, medium: 1, low: 2, info: 3 };
+    return out.sort((a, b) => levelRank[a.level] - levelRank[b.level]);
+  }
+
   // Compute annual returns from a list of monthly close points.
   function annualReturnsFromMonthly(points) {
     const byYear = {};
@@ -228,6 +274,8 @@
     fetchYahooHistory,
     fetchHistoryMany,
     annualReturnsFromMonthly,
+    computeLiveAllocation,
+    generateAllocationSignals,
     applyQuotesToHoldings,
     holdingsToTickers,
     relTime,

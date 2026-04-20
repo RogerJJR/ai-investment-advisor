@@ -12,6 +12,13 @@ function Dashboard({ risk }) {
   const { quotes, status, updatedAt, refresh } = useLiveQuotes(allTickers, { intervalMs: 60000 });
   const holdings = RT.applyQuotesToHoldings(DATA.holdings, quotes);
   const liveCount = holdings.filter(h => h.live).length;
+  const liveAllocation = RT.computeLiveAllocation(holdings, DATA.allocation);
+  const totalMV = holdings.reduce((s,h) => s + h.shares * h.price, 0);
+  const liveSignals = status === 'live'
+    ? [...RT.generateAllocationSignals(liveAllocation, totalMV), ...DATA.signals.filter(s => s.type !== 'rebalance' && s.type !== 'concentration')]
+    : DATA.signals;
+  const absDeviation = liveAllocation.reduce((s,a) => s + Math.abs(a.current - a.target), 0);
+  const needRebalance = liveAllocation.filter(a => Math.abs(a.current - a.target) >= 3).length;
 
   const totalCost = holdings.reduce((s,h) => s + h.shares * h.cost, 0);
   const totalValue = holdings.reduce((s,h) => s + h.shares * h.price, 0);
@@ -69,8 +76,8 @@ function Dashboard({ risk }) {
 
         <div className="card">
           <div className="kpi-label">配置偏離度</div>
-          <div className="kpi-value" style={{color:'var(--warn)'}}>12.4<span style={{fontSize:14, color:'var(--text-3)', marginLeft:4}}>pp</span></div>
-          <div className="kpi-delta">需要再平衡的項目 <span style={{color:'var(--text-1)'}}>3 / 6</span></div>
+          <div className="kpi-value" style={{color: absDeviation > 10 ? 'var(--warn)' : 'var(--pos)'}}>{absDeviation.toFixed(1)}<span style={{fontSize:14, color:'var(--text-3)', marginLeft:4}}>pp</span></div>
+          <div className="kpi-delta">需要再平衡的項目 <span style={{color:'var(--text-1)'}}>{needRebalance} / {liveAllocation.length}</span></div>
           <div style={{marginTop:14}}>
             <StackedBar items={[
               { name:'對齊', value: 3, color: 'var(--pos)' },
@@ -102,9 +109,9 @@ function Dashboard({ risk }) {
               <button>盈虧</button>
             </div>
           </div>
-          <BarChart items={DATA.allocation} width={640} height={220}/>
+          <BarChart items={liveAllocation} width={640} height={220}/>
           <div style={{display:'flex', gap:14, marginTop:14, flexWrap:'wrap'}}>
-            {DATA.allocation.map(a => (
+            {liveAllocation.map(a => (
               <div key={a.name} style={{display:'flex', alignItems:'center', gap:6, fontSize:11, color:'var(--text-2)'}}>
                 <span style={{width:8, height:8, borderRadius:2, background:a.color}}/>
                 <span>{a.name}</span>
@@ -124,10 +131,10 @@ function Dashboard({ risk }) {
             <span className="chip accent"><span className="dot pulse"/>即時</span>
           </div>
           <div style={{display:'flex', flexDirection:'column', gap:10}}>
-            {DATA.signals.slice(0,3).map(s => (
+            {liveSignals.slice(0,3).map(s => (
               <SignalMini key={s.id} sig={s}/>
             ))}
-            <button className="btn ghost" style={{alignSelf:'flex-start'}}>查看全部 4 個訊號<Icon name="arrow-right" size={12}/></button>
+            <button className="btn ghost" style={{alignSelf:'flex-start'}}>查看全部 {liveSignals.length} 個訊號<Icon name="arrow-right" size={12}/></button>
           </div>
         </div>
       </div>
