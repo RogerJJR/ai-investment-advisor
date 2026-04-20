@@ -31,6 +31,7 @@ function Signals() {
 
   const [sigState, setSigState] = React.useState(loadSignalState);
   const [tab, setTab] = React.useState('pending'); // pending | handled | skipped
+  const [levelFilter, setLevelFilter] = React.useState('all'); // all | high | medium | low | info
 
   const allSignals = status === 'live'
     ? [
@@ -50,9 +51,10 @@ function Signals() {
 
   const signals = allSignals.filter(s => {
     const st = statusOf(s.id);
-    if (tab === 'pending') return st === 'pending';
-    if (tab === 'handled') return st === 'handled';
-    if (tab === 'skipped') return st === 'skipped' || st === 'snoozed';
+    if (tab === 'pending' && st !== 'pending') return false;
+    if (tab === 'handled' && st !== 'handled') return false;
+    if (tab === 'skipped' && !['skipped','snoozed'].includes(st)) return false;
+    if (levelFilter !== 'all' && s.level !== levelFilter) return false;
     return true;
   });
 
@@ -108,6 +110,33 @@ function Signals() {
               <button className={tab==='handled'?'active':''} onClick={()=>setTab('handled')}>已處理 · {handledCount}</button>
               <button className={tab==='skipped'?'active':''} onClick={()=>setTab('skipped')}>略過 · {skippedCount}</button>
             </div>
+          </div>
+          <div style={{padding:'8px 14px', borderBottom:'1px solid var(--line)', display:'flex', flexWrap:'wrap', gap:6, alignItems:'center', background:'var(--bg-2)'}}>
+            {[
+              { k:'all',    label:'全部', color:'var(--text-2)', n: pendingAll.length + (tab!=='pending' ? (tab==='handled'?handledCount:skippedCount) : 0) },
+              { k:'high',   label:'高',   color:'var(--neg)',    n: counts.high },
+              { k:'medium', label:'中',   color:'var(--warn)',   n: counts.medium },
+              { k:'low',    label:'低',   color:'var(--accent)', n: counts.low },
+            ].map(chip => (
+              <button
+                key={chip.k}
+                onClick={() => setLevelFilter(chip.k)}
+                style={{
+                  padding:'3px 8px', fontSize:10, borderRadius:4,
+                  border:'1px solid ' + (levelFilter === chip.k ? chip.color : 'var(--line)'),
+                  background: levelFilter === chip.k ? 'var(--bg-1)' : 'transparent',
+                  color: levelFilter === chip.k ? chip.color : 'var(--text-3)',
+                  cursor:'pointer', display:'flex', alignItems:'center', gap:5, letterSpacing:'0.04em',
+                }}
+              >
+                <span style={{width:5, height:5, borderRadius:'50%', background:chip.color}}/>
+                {chip.label}
+                {chip.k !== 'all' && <span className="mono" style={{opacity:0.7}}>{chip.n}</span>}
+              </button>
+            ))}
+            {levelFilter !== 'all' && (
+              <span style={{marginLeft:'auto', fontSize:10, color:'var(--text-3)'}}>{signals.length} 筆符合</span>
+            )}
           </div>
           <div>
             {signals.length === 0 && (
