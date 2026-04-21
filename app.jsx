@@ -41,6 +41,7 @@ const BREADCRUMBS = {
   chat:      ['配置顧問', 'AI 決策', '對話 AI'],
   sources:   ['配置顧問', '資料', '資料基底'],
   backtest:  ['配置顧問', '資料', '歷史回測'],
+  theory:    ['配置顧問', '資料', '理論基礎'],
   settings:  ['配置顧問', '個人設定'],
 };
 
@@ -125,6 +126,7 @@ function App() {
       case 'chat':      return <Chat/>;
       case 'sources':   return <Sources/>;
       case 'backtest':  return <Backtest/>;
+      case 'theory':    return <Theory/>;
       case 'settings':  return <Settings risk={risk} setRisk={(v)=>{setRisk(v); persist({risk:v});}}
                                         theme={theme} setTheme={(v)=>{setTheme(v); persist({theme:v});}}
                                         density={density} setDensity={(v)=>{setDensity(v); persist({density:v});}}/>;

@@ -1,7 +1,7 @@
 // Sidebar nav + topbar
 const { useState, useEffect, useRef, useMemo } = React;
 
-const APP_VERSION = 'v1.4.0';
+const APP_VERSION = 'v1.5.0';
 const APP_BUILD_DATE = '2026-04-20';
 window.APP_VERSION = APP_VERSION;
 window.APP_BUILD_DATE = APP_BUILD_DATE;
@@ -36,6 +36,7 @@ function Sidebar({ current, onNav }) {
     { group: '資料', items: [
       { id: 'sources',   label: '資料基底',     icon: 'database' },
       { id: 'backtest',  label: '歷史回測',     icon: 'history' },
+      { id: 'theory',    label: '理論基礎',     icon: 'book' },
     ]},
     { group: '帳戶', items: [
       { id: 'settings',  label: '個人設定',     icon: 'settings' },
