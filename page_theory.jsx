@@ -306,7 +306,7 @@ function Theory() {
         <Plain>
           這是方法論上的突破:從「AI 信不信得過?」(感性問題)變成「β 有沒有過 1?」(可度量問題)。
           本 App 採用的 LLM pipeline 實測 β ≈ 1.2,剛好過門檻 — 因此配置建議會真實採用 AI 訊號,
-          但若 β 退化到 < 1,系統會自動退回到 regime-agnostic 基準配置,保守先行。
+          但若 β 退化到 {'<'} 1,系統會自動退回到 regime-agnostic 基準配置,保守先行。
         </Plain>
       </Section>
 
