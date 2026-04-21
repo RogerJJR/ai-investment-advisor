@@ -29,15 +29,35 @@
     US10Y:     '^TNX',
   };
 
-  const PROXIES = [
+  // Own Cloud Run proxy (preferred). Configured via <meta name="proxy-base" content="https://…">
+  // Falls back to public CORS proxies if unset or failing.
+  const PROXY_BASE = (() => {
+    try {
+      const el = document.querySelector('meta[name="proxy-base"]');
+      const v = el?.content?.trim();
+      return v && /^https?:\/\//.test(v) ? v.replace(/\/+$/, '') : null;
+    } catch { return null; }
+  })();
+
+  const PUBLIC_PROXIES = [
     (u) => 'https://corsproxy.io/?url=' + encodeURIComponent(u),
     (u) => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
     (u) => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u),
   ];
 
+  // Fetch JSON from our own proxy, peeling the {ok,data} envelope.
+  async function fetchOwnProxy(path) {
+    if (!PROXY_BASE) throw new Error('no proxy-base');
+    const res = await fetch(PROXY_BASE + path, { cache: 'no-store' });
+    if (!res.ok) throw new Error('proxy HTTP ' + res.status);
+    const json = await res.json();
+    if (json && json.ok === false) throw new Error(json.error || 'proxy error');
+    return json?.data ?? json;
+  }
+
   async function fetchWithProxy(url) {
     let lastErr;
-    for (const proxy of PROXIES) {
+    for (const proxy of PUBLIC_PROXIES) {
       try {
         const res = await fetch(proxy(url), { cache: 'no-store' });
         if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -54,8 +74,11 @@
   // falls back to TWSE OpenAPI (end-of-day data, real official source).
   async function fetchYahooQuote(ticker) {
     try {
-      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
-      const json = await fetchWithProxy(url);
+      const path = `/yahoo/chart?symbol=${encodeURIComponent(ticker)}&interval=1d&range=5d`;
+      const url  = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=5d`;
+      const json = PROXY_BASE
+        ? await fetchOwnProxy(path).catch(() => fetchWithProxy(url))
+        : await fetchWithProxy(url);
       const r = json?.chart?.result?.[0];
       if (!r) throw new Error('No data for ' + ticker);
       const m = r.meta || {};
@@ -97,17 +120,28 @@
     if (_twseCache && now - _twseTime < TWSE_TTL) return _twseCache;
     if (_twseInflight) return _twseInflight;
     _twseInflight = (async () => {
-      let data;
-      try {
-        const res = await fetch(TWSE_URL, { cache: 'no-store' });
-        if (!res.ok) throw new Error('TWSE HTTP ' + res.status);
-        data = await res.json();
-      } catch {
-        data = await fetchWithProxy(TWSE_URL);
+      let map;
+      // 1) own proxy returns the code→row map directly
+      if (PROXY_BASE) {
+        try {
+          const data = await fetchOwnProxy('/twse/day-all');
+          if (data && typeof data === 'object') map = data;
+        } catch {}
       }
-      const map = {};
-      if (Array.isArray(data)) {
-        for (const r of data) if (r && r.Code) map[r.Code] = r;
+      if (!map) {
+        // 2) direct call (works in some browsers), then public proxies
+        let data;
+        try {
+          const res = await fetch(TWSE_URL, { cache: 'no-store' });
+          if (!res.ok) throw new Error('TWSE HTTP ' + res.status);
+          data = await res.json();
+        } catch {
+          data = await fetchWithProxy(TWSE_URL);
+        }
+        map = {};
+        if (Array.isArray(data)) {
+          for (const r of data) if (r && r.Code) map[r.Code] = r;
+        }
       }
       _twseCache = map;
       _twseTime = Date.now();
@@ -183,7 +217,20 @@
 
   async function fetchMisBatch(codes) {
     if (!codes.length) return {};
-    // Try both tse_ and otc_ prefix for each code; MIS returns only matching entries
+    // Own proxy returns pre-normalised { [code]: quote } directly.
+    if (PROXY_BASE) {
+      try {
+        const data = await fetchOwnProxy(`/twse/mis?codes=${encodeURIComponent(codes.join(','))}`);
+        if (data && typeof data === 'object') {
+          const out = {};
+          for (const [code, q] of Object.entries(data)) {
+            out[code] = { ...q, time: q.time ? new Date(q.time) : new Date() };
+          }
+          if (Object.keys(out).length) return out;
+        }
+      } catch { /* fall back */ }
+    }
+
     const ex_ch = codes.flatMap(c => [`tse_${c}.tw`, `otc_${c}.tw`]).join('|');
     const url = `${MIS_URL}?ex_ch=${encodeURIComponent(ex_ch)}&json=1&_=${Date.now()}`;
     const json = await fetchWithProxy(url);
@@ -206,7 +253,7 @@
         currency: 'TWD',
         marketState: (zRaw && !isNaN(zRaw)) ? 'MIS' : 'MIS-PRE',
         time: r.t ? new Date(`${(r.d||'').replace(/^(\d{4})(\d{2})(\d{2})$/,'$1-$2-$3')}T${r.t}+08:00`) : new Date(),
-        exchange: r.ex, // 'tse' or 'otc'
+        exchange: r.ex,
       };
     }
     return out;
@@ -214,8 +261,11 @@
 
   // Yahoo historical closes. range: 1mo|3mo|6mo|1y|2y|5y|10y|max
   async function fetchYahooHistory(ticker, { range = '10y', interval = '1mo' } = {}) {
-    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
-    const json = await fetchWithProxy(url);
+    const path = `/yahoo/chart?symbol=${encodeURIComponent(ticker)}&interval=${interval}&range=${range}`;
+    const url  = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=${interval}&range=${range}`;
+    const json = PROXY_BASE
+      ? await fetchOwnProxy(path).catch(() => fetchWithProxy(url))
+      : await fetchWithProxy(url);
     const r = json?.chart?.result?.[0];
     if (!r) throw new Error('No history for ' + ticker);
     const timestamps = r.timestamp || [];
@@ -239,8 +289,11 @@
 
   // Yahoo Finance news search. Returns normalised news items.
   async function fetchYahooNews(query, count = 6) {
-    const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&newsCount=${count}&quotesCount=0`;
-    const json = await fetchWithProxy(url);
+    const path = `/yahoo/search?q=${encodeURIComponent(query)}&newsCount=${count}&quotesCount=0`;
+    const url  = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(query)}&newsCount=${count}&quotesCount=0`;
+    const json = PROXY_BASE
+      ? await fetchOwnProxy(path).catch(() => fetchWithProxy(url))
+      : await fetchWithProxy(url);
     const news = json?.news || [];
     return news.map((n) => ({
       id: n.uuid || n.link,

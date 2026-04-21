@@ -1,0 +1,13 @@
+{
+  "name": "ai-advisor-proxy",
+  "version": "1.0.0",
+  "description": "Cloud Run proxy: Yahoo Finance + TWSE with CORS + in-memory cache.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
