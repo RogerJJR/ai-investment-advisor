@@ -218,6 +218,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`[proxy] listening on :${PORT}`);
+// Cloud Run requires listening on 0.0.0.0 (not localhost/::1).
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[proxy] listening on 0.0.0.0:${PORT}`);
 });

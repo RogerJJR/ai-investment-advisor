@@ -89,7 +89,29 @@ jobs:
           echo "Service URL: $URL"
           echo "::notice title=Cloud Run URL::$URL"
 
+      - name: Revision status
+        continue-on-error: true
+        env:
+          REGION: ${{ github.event.inputs.region || 'asia-east1' }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "── Latest revisions ─────────────────────────────"
+          gcloud run revisions list \
+            --service ai-advisor-proxy \
+            --region "$REGION" \
+            --project "$PROJECT" \
+            --limit 3 \
+            --format='table(metadata.name, status.conditions[0].type, status.conditions[0].status, status.conditions[0].message)' || true
+
+          echo
+          echo "── Service status ───────────────────────────────"
+          gcloud run services describe ai-advisor-proxy \
+            --region "$REGION" \
+            --project "$PROJECT" \
+            --format='yaml(status.conditions, status.traffic, spec.template.spec.containers[0].image, spec.template.spec.containers[0].ports)' || true
+
       - name: Smoke test /healthz
+        id: smoke
         continue-on-error: true
         env:
           REGION: ${{ github.event.inputs.region || 'asia-east1' }}
@@ -103,20 +125,43 @@ jobs:
           # Probe unauthenticated (what the browser will do)
           HTTP=$(curl -sS -o /tmp/body -w '%{http_code}' "$URL/healthz" || echo 000)
           echo "Unauth status: $HTTP"
-          head -c 200 /tmp/body || true; echo
+          head -c 500 /tmp/body || true; echo
           if [ "$HTTP" = "200" ]; then
             echo "::notice title=Public access OK::$URL is publicly reachable"
+            echo "result=ok" >> "$GITHUB_OUTPUT"
           else
             # Fallback: probe with identity token (proves the service itself works)
             TOKEN=$(gcloud auth print-identity-token)
             HTTP2=$(curl -sS -H "Authorization: Bearer $TOKEN" -o /tmp/body2 -w '%{http_code}' "$URL/healthz" || echo 000)
             echo "Auth'd status: $HTTP2"
-            head -c 200 /tmp/body2 || true; echo
+            head -c 500 /tmp/body2 || true; echo
             if [ "$HTTP2" = "200" ]; then
               echo "::warning title=Public access blocked::Service is healthy but requires authentication. Org policy likely blocks allUsers — see SETUP.md."
+              echo "result=auth-only" >> "$GITHUB_OUTPUT"
             else
-              echo "::error title=Service unhealthy::/healthz returned $HTTP2 even with auth. Check Cloud Run logs."
-              exit 1
+              echo "::warning title=Service unhealthy::/healthz returned $HTTP2 even with auth — container likely failed to start. Logs printed below."
+              echo "result=broken" >> "$GITHUB_OUTPUT"
             fi
           fi
+
+      - name: Dump Cloud Run container logs (if smoke test failed)
+        if: steps.smoke.outputs.result == 'broken' || steps.smoke.outputs.result == ''
+        continue-on-error: true
+        env:
+          REGION: ${{ github.event.inputs.region || 'asia-east1' }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          echo "── Last 100 container log entries ──────────────"
+          gcloud logging read \
+            "resource.type=cloud_run_revision AND resource.labels.service_name=ai-advisor-proxy AND resource.labels.location=$REGION" \
+            --limit 100 \
+            --project "$PROJECT" \
+            --format='value(timestamp, severity, textPayload)' \
+            --order=desc || true
+
+      - name: Fail if service is broken
+        if: steps.smoke.outputs.result == 'broken'
+        run: |
+          echo "::error title=Deploy failed::Container does not respond on /healthz. See logs above."
+          exit 1
 
