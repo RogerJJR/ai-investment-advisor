@@ -1,0 +1,84 @@
+name: Deploy Cloud Run proxy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - '.github/workflows/deploy-proxy.yml'
+  workflow_dispatch:
+    inputs:
+      region:
+        description: 'Cloud Run region'
+        default: 'asia-east1'
+        required: false
+
+concurrency:
+  group: cloud-run-proxy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: gcloud run deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Show identity
+        run: |
+          gcloud auth list
+          gcloud config get-value project || true
+
+      - name: Deploy to Cloud Run
+        env:
+          REGION: ${{ github.event.inputs.region || 'asia-east1' }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          gcloud run deploy ai-advisor-proxy \
+            --source ./server \
+            --project "$PROJECT" \
+            --region "$REGION" \
+            --allow-unauthenticated \
+            --cpu 1 \
+            --memory 256Mi \
+            --max-instances 10 \
+            --min-instances 0 \
+            --timeout 30s \
+            --quiet
+
+      - name: Print service URL
+        env:
+          REGION: ${{ github.event.inputs.region || 'asia-east1' }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          URL=$(gcloud run services describe ai-advisor-proxy \
+            --region "$REGION" \
+            --project "$PROJECT" \
+            --format='value(status.url)')
+          echo "Service URL: $URL"
+          echo "::notice title=Cloud Run URL::$URL"
+
+      - name: Smoke test /healthz
+        env:
+          REGION: ${{ github.event.inputs.region || 'asia-east1' }}
+          PROJECT: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          URL=$(gcloud run services describe ai-advisor-proxy \
+            --region "$REGION" \
+            --project "$PROJECT" \
+            --format='value(status.url)')
+          curl -fsS "$URL/healthz"
+          echo

@@ -1,5 +1,11 @@
 # 部署到 Google Cloud(Firebase Hosting + Cloud Run proxy)
 
+> **推薦路徑**:先看 [`SETUP.md`](./SETUP.md) — 設好 GitHub Actions 之後,以後 `git push` 就自動部署,完全不用再碰本文的命令列。
+>
+> 本文件是**手動部署**的參考(例如想在本機直接 deploy、或除錯 workflow 時需要重現某一步)。
+
+---
+
 架構:
 ```
   瀏覽器
