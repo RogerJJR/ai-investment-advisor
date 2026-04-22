@@ -189,6 +189,29 @@ F12 Network tab 確認:請求打到 `ai-advisor-proxy-xxxxx.a.run.app/yahoo/char
 ### deploy-hosting workflow 印 `Cloud Run service 'ai-advisor-proxy' not found`
 → Proxy 還沒部署過(步驟 6a)。先跑 proxy workflow 一次。
 
+### Proxy 部署成功但瀏覽器打 URL 看到 403(最常見於 Google Workspace 帳號)
+→ Google Workspace(例如 `@yourcompany.com`)預設啟用
+`constraints/iam.allowedPolicyMemberDomains`,這條 Org Policy 會擋
+掉把 `allUsers` 加到 IAM 的操作 → Cloud Run 部署 OK 但對外一律 403。
+
+Workflow 會在 `Ensure public access` 步驟偵測到並發 warning,不會讓
+整個 run 失敗(因為服務本身是健康的,只是沒對外開放)。
+
+**三個解法選一個**:
+
+1. **請 Workspace 管理員加例外**
+   <https://console.cloud.google.com/iam-admin/orgpolicies> →
+   找 `Domain restricted sharing` (`iam.allowedPolicyMemberDomains`)
+   → 針對 `ai-advisor` 這個 project 加 exception → 重跑 proxy workflow
+
+2. **改用個人 Gmail 建 project**(最簡單)
+   個人帳號沒有 org,不受 policy 限制。用個人 gmail 重建 project,
+   重做步驟 1-5(新 SA、新 JSON、更新 GitHub secret),重跑 workflow。
+
+3. **改成帶 token 存取**(複雜,需要改前端 code)
+   前端接上 Firebase Auth 匿名登入、每個 fetch 帶 identity token、
+   proxy 驗 token。這個需要額外開 ticket。
+
 ### 自訂網域
 Firebase Console → Hosting → **Add custom domain** → 跟著指示設 DNS。免費。
 
